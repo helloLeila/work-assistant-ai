@@ -1,0 +1,56 @@
+# Python 运行缓存
+__pycache__/
+*.py[cod]
+
+# Python 虚拟环境
+.venv/
+venv/
+
+# 前端依赖与构建产物
+frontend/node_modules/
+frontend/dist/
+
+# 后端测试与构建产物
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# 本地环境变量与历史备份
+.env
+.env.bak
+.env.bak.*
+.env.local
+.env.*.local
+
+# 临时探针 / 一次性脚本（含真实接口探测）
+scripts/probe_key.py
+
+# Docker 挂载数据
+volumes/
+
+# macOS 系统文件
+.DS_Store
+
+# IDE / 编辑器本地配置
+.idea/
+backend/.idea/
+.vscode/
+*.swp
+
+# 本地 AI 代理工具配置（与项目无关）
+.codex/
+.windsurf/
+
+# 后端运行期产物（向量索引、用户上传文件等）
+# - knowledge_index/ 是 Milvus 不可用时的本地向量索引，启动会自动重建
+# - uploads/ 是终端用户上传的文档，不属于代码资产
+backend/data/knowledge_index/
+backend/data/uploads/
+
+# 注意：以下文件**保留**入库，方便他人 clone 后立刻有可演示数据：
+# - backend/data/chat_history.json      演示对话历史
+# - backend/data/business_demo.db        SQLite 业务库种子
+# - backend/data/seed_docs/              知识库种子文档
+# - backend/data/knowledge_metadata.json 元信息

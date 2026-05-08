@@ -1,0 +1,1 @@
+知识库接入规范：上传文件支持PDF、DOCX、TXT。文档切分使用800字符和150字符重叠。向量模型使用text-embedding-3-small，索引采用HNSW。

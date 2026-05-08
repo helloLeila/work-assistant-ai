@@ -1,0 +1,112 @@
+"""LLM 与 Embedding 工厂。
+
+支持两类聊天协议：
+1. OpenAI 协议（OpenAI 官方 / OpenAI 兼容网关 / MiniMax 按量计费）→ ChatOpenAI
+2. Anthropic 协议（Claude 官方 / MiniMax Token Plan / Coding Plan）→ ChatAnthropic
+
+具体由 settings.active_llm_provider 决定，调用方一律走 get_chat_model()，
+不需要关心底层是哪种协议——LangChain 的 BaseChatModel 抽象层会兜住差异，
+所以现有的 `prompt | llm | parser` 链路无需改动。
+"""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Sequence
+from typing import Any
+
+from langchain_anthropic import ChatAnthropic
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+
+from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
+
+
+def _build_openai_client_kwargs() -> dict[str, Any]:
+    """统一组装 OpenAI / OpenAI 兼容接口的公共参数。"""
+    settings = get_settings()
+    client_kwargs: dict[str, Any] = {
+        "api_key": settings.openai_api_key,
+    }
+
+    # 只有在用户显式配置时才传 base_url，避免影响 OpenAI 官方默认地址。
+    if settings.openai_base_url.strip():
+        client_kwargs["base_url"] = settings.openai_base_url.strip()
+
+    return client_kwargs
+
+
+def _build_anthropic_client_kwargs() -> dict[str, Any]:
+    """统一组装 Anthropic / Anthropic 兼容接口的公共参数。"""
+    settings = get_settings()
+    client_kwargs: dict[str, Any] = {
+        "api_key": settings.anthropic_api_key,
+    }
+    if settings.anthropic_base_url.strip():
+        # langchain-anthropic 用 base_url 参数（底层会传给 anthropic SDK）
+        client_kwargs["base_url"] = settings.anthropic_base_url.strip()
+    return client_kwargs
+
+
+def get_chat_model(
+    *,
+    temperature: float = 0.1,
+    streaming: bool = False,
+    tags: Sequence[str] | None = None,
+) -> BaseChatModel | None:
+    """按配置创建聊天模型。
+
+    返回类型用 BaseChatModel，因为底层可能是 ChatOpenAI 也可能是 ChatAnthropic，
+    但调用侧只用到 LangChain 通用接口（astream / invoke / | 管道），不会感知差异。
+    """
+    settings = get_settings()
+    provider = settings.active_llm_provider
+    if not provider:
+        return None
+
+    tag_list = list(tags or [])
+
+    try:
+        if provider == "anthropic":
+            return ChatAnthropic(
+                **_build_anthropic_client_kwargs(),
+                model=settings.anthropic_model,
+                temperature=temperature,
+                streaming=streaming,
+                tags=tag_list,
+            )
+        # 默认走 OpenAI 协议
+        return ChatOpenAI(
+            **_build_openai_client_kwargs(),
+            model=settings.openai_model,
+            temperature=temperature,
+            streaming=streaming,
+            tags=tag_list,
+        )
+    except Exception as exc:
+        # 不要静默吞掉异常——SOCKS 代理 / 网络问题 / API key 失效都可能从这里冒出来。
+        # 打 ERROR 日志后再返回 None，让上层 fallback 时至少能在日志里看到原因。
+        logger.error("聊天模型初始化失败（provider=%s）：%s", provider, exc, exc_info=True)
+        return None
+
+
+def get_embeddings_model() -> OpenAIEmbeddings | None:
+    """按配置创建 Embedding 模型。
+
+    Embedding 目前只支持 OpenAI 协议——MiniMax Token Plan 不提供向量化接口。
+    如果当前供应商只有聊天模型，就把 OPENAI_EMBEDDING_MODEL 留空，
+    系统会自动回退到本地词法检索。
+    """
+    settings = get_settings()
+    if not settings.openai_enabled or not settings.has_embedding_model:
+        return None
+    try:
+        return OpenAIEmbeddings(
+            **_build_openai_client_kwargs(),
+            model=settings.openai_embedding_model,
+        )
+    except Exception as exc:
+        logger.error("OpenAIEmbeddings 初始化失败：%s", exc, exc_info=True)
+        return None

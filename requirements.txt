@@ -1,0 +1,35 @@
+# FastAPI 后端核心
+fastapi==0.136.1
+uvicorn[standard]==0.46.0
+pydantic==2.13.4
+pydantic-settings==2.14.0
+
+# 数据访问与基础服务
+sqlalchemy==2.0.49
+psycopg[binary]==3.3.4
+redis==7.4.0
+httpx==0.28.1
+socksio==1.0.0
+python-multipart==0.0.27
+
+# 认证与安全
+python-jose==3.5.0
+passlib==1.7.4
+
+# OpenAI 与 LangChain / LangGraph 生态
+openai==2.35.0
+langchain==1.2.17
+langchain-openai==1.2.1
+langchain-anthropic==1.2.0
+langchain-community==0.4.1
+langchain-milvus==0.3.3
+langgraph==1.1.10
+langsmith==0.8.1
+tiktoken==0.12.0
+
+# 向量库与文档解析
+pymilvus==2.6.12
+unstructured==0.22.27
+
+# 测试
+pytest==9.0.3

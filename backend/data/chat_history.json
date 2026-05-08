@@ -1,0 +1,1123 @@
+{
+  "u-1001": {
+    "session-test-001": {
+      "session_id": "session-test-001",
+      "title": "请查询我这个月的薪酬总包",
+      "updated_at": "2026-05-08T11:19:24.360062",
+      "turns": [
+        {
+          "role": "user",
+          "content": "请查询我这个月的薪酬总包",
+          "created_at": "2026-05-07 02:40:56",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我这个月的薪酬总包",
+          "created_at": "2026-05-07 02:41:27",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我这个月的薪酬总包",
+          "created_at": "2026-05-07 02:41:38",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{'payroll_month': '2026-04', 'total_package': 23200.0, 'base_salary': '受限', 'bonus': '受限', 'allowance': '受限', 'tax': '受限', 'social_security': '受限', 'sql_result': \"[('u-1001', '2026-04', 18000.0, 4000.0, 1200.0, 2600.0, 900.0, 23200.0)]\"}",
+          "created_at": "2026-05-07 02:41:38",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我这个月的薪酬总包",
+          "created_at": "2026-05-07 02:48:35",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{'payroll_month': '2026-04', 'total_package': 23200.0, 'base_salary': '受限', 'bonus': '受限', 'allowance': '受限', 'tax': '受限', 'social_security': '受限', 'sql_result': \"[('u-1001', '2026-04', 18000.0, 4000.0, 1200.0, 2600.0, 900.0, 23200.0)]\"}",
+          "created_at": "2026-05-07 02:48:35",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我这个月的薪酬总包",
+          "created_at": "2026-05-07 02:50:12",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"payroll_month\": \"2026-04\",\n  \"total_package\": 23200.0,\n  \"base_salary\": \"受限\",\n  \"bonus\": \"受限\",\n  \"allowance\": \"受限\",\n  \"tax\": \"受限\",\n  \"social_security\": \"受限\",\n  \"sql_result\": \"[('u-1001', '2026-04', 18000.0, 4000.0, 1200.0, 2600.0, 900.0, 23200.0)]\"\n}",
+          "created_at": "2026-05-07 02:50:15",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我这个月的薪酬总包",
+          "created_at": "2026-05-07 02:50:26",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"payroll_month\": \"2026-04\",\n  \"total_package\": 23200.0,\n  \"base_salary\": \"受限\",\n  \"bonus\": \"受限\",\n  \"allowance\": \"受限\",\n  \"tax\": \"受限\",\n  \"social_security\": \"受限\",\n  \"sql_result\": \"[('u-1001', '2026-04', 18000.0, 4000.0, 1200.0, 2600.0, 900.0, 23200.0)]\"\n}",
+          "created_at": "2026-05-07 02:50:26",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我这个月的薪酬总包",
+          "created_at": "2026-05-07 02:51:53",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"payroll_month\": \"2026-04\",\n  \"total_package\": 23200.0,\n  \"base_salary\": \"受限\",\n  \"bonus\": \"受限\",\n  \"allowance\": \"受限\",\n  \"tax\": \"受限\",\n  \"social_security\": \"受限\",\n  \"sql_result\": \"[('u-1001', '2026-04', 18000.0, 4000.0, 1200.0, 2600.0, 900.0, 23200.0)]\"\n}",
+          "created_at": "2026-05-07 02:51:53",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我这个月的薪酬总包",
+          "created_at": "2026-05-07 11:49:53",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"payroll_month\": \"2026-04\",\n  \"total_package\": 23200.0,\n  \"base_salary\": \"受限\",\n  \"bonus\": \"受限\",\n  \"allowance\": \"受限\",\n  \"tax\": \"受限\",\n  \"social_security\": \"受限\",\n  \"sql_result\": \"[('u-1001', '2026-04', 18000.0, 4000.0, 1200.0, 2600.0, 900.0, 23200.0)]\"\n}",
+          "created_at": "2026-05-07 11:49:53",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我这个月的薪酬总包",
+          "created_at": "2026-05-08 10:57:01",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "\n\n已为你查询到 **2026年4月** 的薪酬情况：\n\n**税前总包：23,200元**\n\n本月薪酬构成如下：\n\n- 基本工资：**¥18,000**\n- 奖金：**¥4,000**\n- 补贴：**¥1,200**\n\n扣除项：\n\n- 税金：¥2,600\n- 社保：¥900\n\n---\n\n这是你当前的最新一期薪酬记录。如需了解其他月份或有其他疑问，随时告诉我。",
+          "created_at": "2026-05-08 10:57:32",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我这个月的薪酬总包",
+          "created_at": "2026-05-08 10:59:15",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "\n\n您好！已为您查询到 **2026年4月份** 的薪酬总包为 **23,200 元**。\n\n> 💡 说明：您的基本工资、奖金、补贴、税费及社保等明细项目暂无法直接展示，如需查看详细内容，建议您联系 HR 同事获取详细工资条。\n\n如有其他薪酬相关问题，欢迎随时向我提问！",
+          "created_at": "2026-05-08 11:00:13",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我这个月的薪酬总包",
+          "created_at": "2026-05-08 11:00:57",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "\n\n您好！我已为您查询到 **2026年4月** 的薪酬明细如下：\n\n---\n\n### 📋 本月薪酬明细\n\n| 项目 | 金额 |\n|------|------|\n| 基本工资 | ¥18,000.00 |\n| 奖金 | ¥4,000.00 |\n| 补贴 | ¥1,200.00 |\n| 税金 | -¥2,600.00 |\n| 社保 | -¥900.00 |\n| **应发合计** | **¥23,200.00** |\n\n---\n\n📌 **要点汇总：**\n\n- 本月应发薪酬共计 **23,200 元**，已扣除税金和社保个人部分\n- 其中基本工资 1.8 万元，奖金 4,000 元，补贴 1,200 元\n- 实发金额需再扣除公积金等未列项，最终以到账为准\n\n如需查看其他月份或有其他问题，随时告诉我 😊",
+          "created_at": "2026-05-08 11:01:39",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我这个月的薪酬总包",
+          "created_at": "2026-05-08 11:18:29",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "\n\n您好！已为您查询到本月的薪酬信息：\n\n**2026年4月薪酬总包：¥23,200.00**\n\n温馨提示：您本月的基本工资、奖金、补贴、税费及社保等明细项目暂无权限查看。如需了解详细内容，建议联系HR或薪酬专员获取完整薪资条。\n\n请问还有其他需要帮忙的吗？",
+          "created_at": "2026-05-08 11:19:24",
+          "sources": []
+        }
+      ]
+    },
+    "session-test-002": {
+      "session_id": "session-test-002",
+      "title": "帮我查看我的年假",
+      "updated_at": "2026-05-08T11:24:44.448248",
+      "turns": [
+        {
+          "role": "user",
+          "content": "帮我查看我的剩余年假",
+          "created_at": "2026-05-07 02:48:35",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{'user_id': 'u-1001', 'name': '李伟', 'annual_leave': 7}",
+          "created_at": "2026-05-07 02:48:35",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我查看我的剩余年假",
+          "created_at": "2026-05-07 02:50:15",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"user_id\": \"u-1001\",\n  \"name\": \"李伟\",\n  \"annual_leave\": 7\n}",
+          "created_at": "2026-05-07 02:50:15",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我查看我的剩余年假",
+          "created_at": "2026-05-07 02:50:26",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"user_id\": \"u-1001\",\n  \"name\": \"李伟\",\n  \"annual_leave\": 7\n}",
+          "created_at": "2026-05-07 02:50:26",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我查看我的剩余年假",
+          "created_at": "2026-05-07 02:51:53",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"user_id\": \"u-1001\",\n  \"name\": \"李伟\",\n  \"annual_leave\": 7\n}",
+          "created_at": "2026-05-07 02:51:53",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我查看我的剩余年假",
+          "created_at": "2026-05-07 11:49:53",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"user_id\": \"u-1001\",\n  \"name\": \"李伟\",\n  \"annual_leave\": 7\n}",
+          "created_at": "2026-05-07 11:49:53",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我查看我的剩余年假",
+          "created_at": "2026-05-08 10:57:32",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "你好，李伟！😊\n\n很抱歉，目前我这边暂时无法直接查询到你的剩余年假信息。这类数据通常需要连接到人事系统才能获取。\n\n建议你可以通过以下方式查询：\n\n- **公司OA系统** — 登录后通常在「我的假期」或「个人中心」模块可以查看\n- **HR系统** — 部分公司有独立的请假管理平台\n- **咨询HR同事** — 直接联系人事部门获取准确数据\n\n如果你们公司有专门的年假查询入口或APP，告诉我具体情况，我可以帮你看看怎么操作～",
+          "created_at": "2026-05-08 10:57:58",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我查看我的剩余年假",
+          "created_at": "2026-05-08 11:00:13",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "\n\n你好，李伟！👋\n\n很抱歉，目前的系统数据中暂时无法查询到你的年假余额信息。\n\n如果你想了解剩余年假，建议你尝试以下方式：\n\n- 通过公司内部的人事系统或 OA 平台自助查询\n- 联系 HR 行政部门咨询\n\n需要我帮你转接或做其他处理吗？",
+          "created_at": "2026-05-08 11:00:45",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我查看我的剩余年假",
+          "created_at": "2026-05-08 11:01:39",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "\n\n您好，李伟！\n\n很抱歉，我目前暂时无法查询到您的剩余年假信息（系统暂时没有相关的假期数据）。\n\n建议您通过以下方式获取：\n\n- 登录公司 HR 系统 / 考勤系统自行查询\n- 联系 HR 同事或人事专员\n- 查看公司内部通知或相关邮件\n\n如果您有其他问题需要帮忙，随时告诉我 😊",
+          "created_at": "2026-05-08 11:02:11",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你是谁",
+          "created_at": "2026-05-08 11:10:19",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "\n\n你好！我是企业智能办公助手，主要帮你处理日常工作中的各种事务，比如：\n\n- **出行申请** — 提交行程、查看审批进度\n- **财务报销** — 提交报销单据、查询报销状态\n- **信息查询** — 帮你检索文件、数据或流程指引\n- **任务处理** — 协助跟进待办事项\n\n有什么需要帮忙的，直接告诉我就好 😊",
+          "created_at": "2026-05-08 11:10:30",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "薪酬查询",
+          "created_at": "2026-05-08 11:11:45",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "\n\n您好，李伟！已为您查到您最近一期的薪酬明细，具体如下：\n\n- **薪酬月份**：2026年4月\n- **基本工资**：18,000 元\n- **奖金**：4,000 元\n- **补贴**：1,200 元\n- **个人所得税**：2,600 元\n- **社保**：900 元\n\n税前总收入合计约 **23,200 元**，扣除个税和社保后，实发金额请以工资到账为准。\n\n如对明细有疑问，欢迎随时咨询～",
+          "created_at": "2026-05-08 11:12:41",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我查看我的剩余年假",
+          "created_at": "2026-05-08 11:19:24",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "\n你好李伟！😊\n\n很抱歉，我目前没有查询到你的年假余额信息。系统里只登记了你的基本信息，暂未关联考勤或假期数据。\n\n建议你可以通过以下方式查询：\n\n- **公司内部OA系统**：通常在「我的假期」或「考勤管理」模块可以查看\n- **联系HR部门**：他们可以帮你确认剩余年假天数\n- **人事行政同事**：如果有专门的请假申请入口，里面也会显示余额\n\n如果后续系统数据更新了，我再帮你查看～还有其他问题吗？",
+          "created_at": "2026-05-08 11:20:00",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "公司最近有啥新闻",
+          "created_at": "2026-05-08 11:20:16",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我暂时无法在现有上下文中稳定生成可信答案，请稍后重试或补充更多信息。",
+          "created_at": "2026-05-08 11:20:52",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "公司知识库都有啥那",
+          "created_at": "2026-05-08 11:20:59",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我暂时无法在现有上下文中稳定生成可信答案，请稍后重试或补充更多信息。",
+          "created_at": "2026-05-08 11:21:32",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 11:24:34",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "\n\n你好！很高兴见到你～有什么可以帮到你的吗？",
+          "created_at": "2026-05-08 11:24:44",
+          "sources": []
+        }
+      ]
+    },
+    "test1": {
+      "session_id": "test1",
+      "title": "你好",
+      "updated_at": "2026-05-08T07:56:46.271199",
+      "turns": [
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 06:05:52",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我需要进一步确认你的需求。你是想查询chitchat、knowledge吗？",
+          "created_at": "2026-05-08 06:05:52",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 06:47:40",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我需要进一步确认你的需求。你是想查询chitchat、knowledge吗？",
+          "created_at": "2026-05-08 06:47:40",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 06:47:48",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我需要进一步确认你的需求。你是想查询chitchat、knowledge吗？",
+          "created_at": "2026-05-08 06:47:48",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 06:47:52",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我需要进一步确认你的需求。你是想查询chitchat、knowledge吗？",
+          "created_at": "2026-05-08 06:47:52",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好 你是谁",
+          "created_at": "2026-05-08 06:49:25",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我需要进一步确认你的需求。你是想查询chitchat、knowledge吗？",
+          "created_at": "2026-05-08 06:49:25",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 07:12:49",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我需要进一步确认你的需求。你是想查询chitchat、knowledge吗？",
+          "created_at": "2026-05-08 07:12:49",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 07:12:58",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我需要进一步确认你的需求。你是想查询chitchat、knowledge吗？",
+          "created_at": "2026-05-08 07:12:58",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 07:13:10",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我需要进一步确认你的需求。你是想查询chitchat、knowledge吗？",
+          "created_at": "2026-05-08 07:13:10",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 07:28:50",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我需要进一步确认你的需求。你是想查询chitchat、knowledge吗？",
+          "created_at": "2026-05-08 07:28:50",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你是谁",
+          "created_at": "2026-05-08 07:28:54",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我需要进一步确认你的需求。你是想查询chitchat、knowledge吗？",
+          "created_at": "2026-05-08 07:28:54",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你叫啥",
+          "created_at": "2026-05-08 07:28:57",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我需要进一步确认你的需求。你是想查询chitchat、knowledge吗？",
+          "created_at": "2026-05-08 07:28:57",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "碴",
+          "created_at": "2026-05-08 07:29:00",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我需要进一步确认你的需求。你是想查询chitchat、knowledge吗？",
+          "created_at": "2026-05-08 07:29:00",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "差",
+          "created_at": "2026-05-08 07:29:02",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我需要进一步确认你的需求。你是想查询chitchat、knowledge吗？",
+          "created_at": "2026-05-08 07:29:02",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "写死了吗？",
+          "created_at": "2026-05-08 07:29:09",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我需要进一步确认你的需求。你是想查询chitchat、knowledge吗？",
+          "created_at": "2026-05-08 07:29:09",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 07:33:06",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 07:33:06",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你是谁",
+          "created_at": "2026-05-08 07:33:11",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 07:33:11",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你叫啥",
+          "created_at": "2026-05-08 07:33:14",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 07:33:14",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 07:47:33",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 07:47:33",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 07:47:41",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 07:47:41",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我总结公司的差旅报销标准，并列出关键限制条件。",
+          "created_at": "2026-05-08 07:50:21",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我暂时无法在现有上下文中稳定生成可信答案，请稍后重试或补充更多信息。",
+          "created_at": "2026-05-08 07:50:21",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我本月的薪酬总包。",
+          "created_at": "2026-05-08 07:50:22",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"payroll_month\": \"2026-04\",\n  \"total_package\": 23200.0,\n  \"base_salary\": \"受限\",\n  \"bonus\": \"受限\",\n  \"allowance\": \"受限\",\n  \"tax\": \"受限\",\n  \"social_security\": \"受限\",\n  \"sql_result\": \"[('u-1001', '2026-04', 18000.0, 4000.0, 1200.0, 2600.0, 900.0, 23200.0)]\"\n}",
+          "created_at": "2026-05-08 07:50:22",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我查看我的合同到期日、剩余年假和部门信息。",
+          "created_at": "2026-05-08 07:50:22",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"user_id\": \"u-1001\",\n  \"name\": \"李伟\",\n  \"department\": \"Finance\",\n  \"annual_leave\": 7,\n  \"contract_end\": \"2027-12-31\"\n}",
+          "created_at": "2026-05-08 07:50:22",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "下周二帮我预订上海到深圳的商务舱，2位乘客。",
+          "created_at": "2026-05-08 07:50:23",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"travel_order\": {\n    \"order_id\": \"TRV-A72DE374\",\n    \"status\": \"confirmed\",\n    \"itinerary_summary\": \"2026-05-19 下周二帮我预订上海 -> 深圳的商务舱，2位乘客，商务舱\",\n    \"provider\": \"local\",\n    \"booking_reference\": null\n  }\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 07:50:23",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "下周二帮我预订上海到深圳的商务舱，2位乘客。",
+          "created_at": "2026-05-08 07:50:25",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"travel_order\": {\n    \"order_id\": \"TRV-126F024C\",\n    \"status\": \"confirmed\",\n    \"itinerary_summary\": \"2026-05-19 下周二帮我预订上海 -> 深圳的商务舱，2位乘客，商务舱\",\n    \"provider\": \"local\",\n    \"booking_reference\": null\n  }\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 07:50:25",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 07:56:10",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"travel_order\": {\n    \"order_id\": \"TRV-126F024C\",\n    \"status\": \"confirmed\",\n    \"itinerary_summary\": \"2026-05-19 下周二帮我预订上海 -> 深圳的商务舱，2位乘客，商务舱\",\n    \"provider\": \"local\",\n    \"booking_reference\": null\n  }\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 07:56:10",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 07:56:27",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"travel_order\": {\n    \"order_id\": \"TRV-126F024C\",\n    \"status\": \"confirmed\",\n    \"itinerary_summary\": \"2026-05-19 下周二帮我预订上海 -> 深圳的商务舱，2位乘客，商务舱\",\n    \"provider\": \"local\",\n    \"booking_reference\": null\n  }\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 07:56:27",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我总结公司的差旅报销标准，并列出关键限制条件。",
+          "created_at": "2026-05-08 07:56:29",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我暂时无法在现有上下文中稳定生成可信答案，请稍后重试或补充更多信息。",
+          "created_at": "2026-05-08 07:56:30",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我本月的薪酬总包。",
+          "created_at": "2026-05-08 07:56:30",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"payroll_month\": \"2026-04\",\n  \"total_package\": 23200.0,\n  \"base_salary\": \"受限\",\n  \"bonus\": \"受限\",\n  \"allowance\": \"受限\",\n  \"tax\": \"受限\",\n  \"social_security\": \"受限\",\n  \"sql_result\": \"[('u-1001', '2026-04', 18000.0, 4000.0, 1200.0, 2600.0, 900.0, 23200.0)]\"\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 07:56:30",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我查看我的合同到期日、剩余年假和部门信息。",
+          "created_at": "2026-05-08 07:56:31",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"user_id\": \"u-1001\",\n  \"name\": \"李伟\",\n  \"department\": \"Finance\",\n  \"annual_leave\": 7,\n  \"contract_end\": \"2027-12-31\"\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 07:56:31",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我本月的薪酬总包。",
+          "created_at": "2026-05-08 07:56:34",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"payroll_month\": \"2026-04\",\n  \"total_package\": 23200.0,\n  \"base_salary\": \"受限\",\n  \"bonus\": \"受限\",\n  \"allowance\": \"受限\",\n  \"tax\": \"受限\",\n  \"social_security\": \"受限\",\n  \"sql_result\": \"[('u-1001', '2026-04', 18000.0, 4000.0, 1200.0, 2600.0, 900.0, 23200.0)]\"\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 07:56:34",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我查看我的合同到期日、剩余年假和部门信息。",
+          "created_at": "2026-05-08 07:56:34",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"user_id\": \"u-1001\",\n  \"name\": \"李伟\",\n  \"department\": \"Finance\",\n  \"annual_leave\": 7,\n  \"contract_end\": \"2027-12-31\"\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 07:56:34",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "下周二帮我预订上海到深圳的商务舱，2位乘客。",
+          "created_at": "2026-05-08 07:56:35",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"travel_order\": {\n    \"order_id\": \"TRV-92C516F3\",\n    \"status\": \"confirmed\",\n    \"itinerary_summary\": \"2026-05-19 下周二帮我预订上海 -> 深圳的商务舱，2位乘客，商务舱\",\n    \"provider\": \"local\",\n    \"booking_reference\": null\n  }\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 07:56:35",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我总结公司的差旅报销标准，并列出关键限制条件。",
+          "created_at": "2026-05-08 07:56:36",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我暂时无法在现有上下文中稳定生成可信答案，请稍后重试或补充更多信息。",
+          "created_at": "2026-05-08 07:56:36",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 07:56:46",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"web_fallback\": \"当前知识库中没有足够材料直接回答“帮我总结公司的差旅报销标准，并列出关键限制条件。”，建议补充相关制度或流程文档。\"\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 07:56:46",
+          "sources": []
+        }
+      ]
+    },
+    "session-7b71f733-413a-4cc9-9181-97d0a53cb1b7": {
+      "session_id": "session-7b71f733-413a-4cc9-9181-97d0a53cb1b7",
+      "title": "帮我总结公司的差旅报销标准，并列出关键限制条件。",
+      "updated_at": "2026-05-08T08:05:35.062846",
+      "turns": [
+        {
+          "role": "user",
+          "content": "帮我总结公司的差旅报销标准，并列出关键限制条件。",
+          "created_at": "2026-05-08 08:05:26",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我暂时无法在现有上下文中稳定生成可信答案，请稍后重试或补充更多信息。",
+          "created_at": "2026-05-08 08:05:26",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 08:05:35",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"web_fallback\": \"当前知识库中没有足够材料直接回答“帮我总结公司的差旅报销标准，并列出关键限制条件。”，建议补充相关制度或流程文档。\"\n}",
+          "created_at": "2026-05-08 08:05:35",
+          "sources": []
+        }
+      ]
+    },
+    "session-64c1b051-c5b9-489a-bf32-fb43f0999601": {
+      "session_id": "session-64c1b051-c5b9-489a-bf32-fb43f0999601",
+      "title": "你好",
+      "updated_at": "2026-05-08T09:26:55.134170",
+      "turns": [
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 08:05:43",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 08:05:43",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你是谁",
+          "created_at": "2026-05-08 08:05:56",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 08:05:56",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "下周二帮我预订上海到深圳的商务舱，2位乘客。",
+          "created_at": "2026-05-08 08:10:21",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"travel_order\": {\n    \"order_id\": \"TRV-331465A6\",\n    \"status\": \"confirmed\",\n    \"itinerary_summary\": \"2026-05-19 下周二帮我预订上海 -> 深圳的商务舱，2位乘客，商务舱\",\n    \"provider\": \"local\",\n    \"booking_reference\": null\n  }\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 08:10:21",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "下周二帮我预订上海到深圳的商务舱，2位乘客。",
+          "created_at": "2026-05-08 08:10:22",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"travel_order\": {\n    \"order_id\": \"TRV-66FA16D2\",\n    \"status\": \"confirmed\",\n    \"itinerary_summary\": \"2026-05-19 下周二帮我预订上海 -> 深圳的商务舱，2位乘客，商务舱\",\n    \"provider\": \"local\",\n    \"booking_reference\": null\n  }\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 08:10:22",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我查看我的合同到期日、剩余年假和部门信息。",
+          "created_at": "2026-05-08 08:10:27",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"user_id\": \"u-1001\",\n  \"name\": \"李伟\",\n  \"department\": \"Finance\",\n  \"annual_leave\": 7,\n  \"contract_end\": \"2027-12-31\"\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 08:10:27",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 09:12:13",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"user_id\": \"u-1001\",\n  \"name\": \"李伟\",\n  \"department\": \"Finance\",\n  \"annual_leave\": 7,\n  \"contract_end\": \"2027-12-31\"\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 09:12:13",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 09:26:46",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"user_id\": \"u-1001\",\n  \"name\": \"李伟\",\n  \"department\": \"Finance\",\n  \"annual_leave\": 7,\n  \"contract_end\": \"2027-12-31\"\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 09:26:46",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 09:26:51",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"user_id\": \"u-1001\",\n  \"name\": \"李伟\",\n  \"department\": \"Finance\",\n  \"annual_leave\": 7,\n  \"contract_end\": \"2027-12-31\"\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 09:26:51",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 09:26:53",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"user_id\": \"u-1001\",\n  \"name\": \"李伟\",\n  \"department\": \"Finance\",\n  \"annual_leave\": 7,\n  \"contract_end\": \"2027-12-31\"\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 09:26:53",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 09:26:55",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"user_id\": \"u-1001\",\n  \"name\": \"李伟\",\n  \"department\": \"Finance\",\n  \"annual_leave\": 7,\n  \"contract_end\": \"2027-12-31\"\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 09:26:55",
+          "sources": []
+        }
+      ]
+    },
+    "session-9827eb7a-da9a-4040-8844-a278c782865f": {
+      "session_id": "session-9827eb7a-da9a-4040-8844-a278c782865f",
+      "title": "你是谁",
+      "updated_at": "2026-05-08T09:55:12.429530",
+      "turns": [
+        {
+          "role": "user",
+          "content": "你是谁",
+          "created_at": "2026-05-08 09:27:08",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 09:27:08",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我本月的薪酬总包。",
+          "created_at": "2026-05-08 09:27:13",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"payroll_month\": \"2026-04\",\n  \"total_package\": 23200.0,\n  \"base_salary\": \"受限\",\n  \"bonus\": \"受限\",\n  \"allowance\": \"受限\",\n  \"tax\": \"受限\",\n  \"social_security\": \"受限\",\n  \"sql_result\": \"[('u-1001', '2026-04', 18000.0, 4000.0, 1200.0, 2600.0, 900.0, 23200.0)]\"\n}",
+          "created_at": "2026-05-08 09:27:13",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我查看我的合同到期日、剩余年假和部门信息。",
+          "created_at": "2026-05-08 09:27:17",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"user_id\": \"u-1001\",\n  \"name\": \"李伟\",\n  \"department\": \"Finance\",\n  \"annual_leave\": 7,\n  \"contract_end\": \"2027-12-31\"\n}",
+          "created_at": "2026-05-08 09:27:17",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "下周二帮我预订上海到深圳的商务舱，2位乘客。",
+          "created_at": "2026-05-08 09:27:19",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "{\n  \"travel_order\": {\n    \"order_id\": \"TRV-467BE3FD\",\n    \"status\": \"confirmed\",\n    \"itinerary_summary\": \"2026-05-19 下周二帮我预订上海 -> 深圳的商务舱，2位乘客，商务舱\",\n    \"provider\": \"local\",\n    \"booking_reference\": null\n  }\n}\n\n{\n  \"from_city\": \"下周二帮我预订上海\",\n  \"to_city\": \"深圳的商务舱\",\n  \"date\": \"2026-05-19\",\n  \"passengers\": 2,\n  \"cabin_class\": \"商务舱\"\n}",
+          "created_at": "2026-05-08 09:27:19",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我总结公司的差旅报销标准，并列出关键限制条件。",
+          "created_at": "2026-05-08 09:27:20",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我暂时无法在现有上下文中稳定生成可信答案，请稍后重试或补充更多信息。",
+          "created_at": "2026-05-08 09:27:20",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 09:55:06",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 09:55:06",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 09:55:09",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 09:55:09",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "您好",
+          "created_at": "2026-05-08 09:55:12",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 09:55:12",
+          "sources": []
+        }
+      ]
+    },
+    "session-6790b2cf-e591-448d-ad61-1d9e3d25607c": {
+      "session_id": "session-6790b2cf-e591-448d-ad61-1d9e3d25607c",
+      "title": "你好",
+      "updated_at": "2026-05-08T10:19:17.112529",
+      "turns": [
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 09:55:19",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 09:55:19",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 09:55:21",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 09:55:21",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 10:18:59",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 10:18:59",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 10:19:07",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 10:19:07",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 10:19:17",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我没有找到足够的信息来直接回答这个问题。",
+          "created_at": "2026-05-08 10:19:17",
+          "sources": []
+        }
+      ]
+    },
+    "session-0b21359e-2203-47ba-8868-baa637300262": {
+      "session_id": "session-0b21359e-2203-47ba-8868-baa637300262",
+      "title": "你好",
+      "updated_at": "2026-05-08T10:20:47.807560",
+      "turns": [
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 10:20:47",
+          "sources": []
+        }
+      ]
+    },
+    "session-d6847ac5-30ca-4337-bed8-521bbef0f5e1": {
+      "session_id": "session-d6847ac5-30ca-4337-bed8-521bbef0f5e1",
+      "title": "你好啊",
+      "updated_at": "2026-05-08T10:38:25.358038",
+      "turns": [
+        {
+          "role": "user",
+          "content": "你好啊",
+          "created_at": "2026-05-08 10:21:00",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好啊",
+          "created_at": "2026-05-08 10:21:12",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 10:26:31",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-08 10:37:54",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "\n\n你好！很高兴见到你 👋\n\n有什么我可以帮你的吗？无论是办公事务、文件处理还是其他问题，随时可以问我～",
+          "created_at": "2026-05-08 10:38:04",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你是谁",
+          "created_at": "2026-05-08 10:38:16",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "\n\n你好！👋\n\n我是你的**企业智能办公助手**，可以帮你处理日常工作中的各种事务，比如：\n\n- 📋 提交和查询各类申请（出行、报销、请假等）\n- 🔍 查找相关信息和数据\n- 📝 解答工作相关的问题\n- 💡 提供办事指引和建议\n\n有什么需要帮忙的，随时告诉我就好！😊",
+          "created_at": "2026-05-08 10:38:25",
+          "sources": []
+        }
+      ]
+    }
+  }
+}
