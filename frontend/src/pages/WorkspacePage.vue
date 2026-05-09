@@ -6,12 +6,15 @@ import {
   PlusOutlined,
   EditOutlined,
   SendOutlined,
+  LogoutOutlined,
+  DownOutlined,
 } from "@ant-design/icons-vue";
+import { useRouter } from "vue-router";
+import { clearSession } from "../stores/session";
 
 import AppSidebar from "../components/AppSidebar.vue";
 import ChatMessageBubble from "../components/ChatMessageBubble.vue";
 import QuickActionCards from "../components/QuickActionCards.vue";
-import StatBadge from "../components/StatBadge.vue";
 import { openChatStream } from "../composables/useChatStream";
 import { requestJson } from "../lib/api";
 import { sessionState } from "../stores/session";
@@ -75,12 +78,15 @@ watch(
   () => scrollChatToBottom(),
 );
 
-const statusCards = computed(() => [
-  { label: "当前用户", value: sessionState.user?.name ?? "-" },
-  { label: "角色", value: sessionState.user?.role ?? "-" },
-  { label: "部门", value: sessionState.user?.department ?? "-" },
-  { label: "能力", value: "知识 / 薪酬 / 个人 / 商旅" },
-]);
+const router = useRouter();
+
+// 用户名首字符作头像占位
+const userInitial = computed(() => sessionState.user?.name?.slice(0, 1) ?? "?");
+
+function handleLogout(): void {
+  clearSession();
+  void router.push("/");
+}
 
 function nowString(): string {
   return new Date().toLocaleTimeString("zh-CN", {
@@ -284,6 +290,51 @@ onMounted(async () => {
 
 <template>
   <a-layout class="workspace-layout">
+    <!-- 顶部全宽 Header：左侧品牌名占满左边，右侧用户菜单 -->
+    <a-layout-header class="app-header">
+      <div class="app-header__brand">企业智能办公助手</div>
+
+      <!-- 个人信息：点击头像展开下拉，包含姓名/角色/部门/退出 -->
+      <a-dropdown :trigger="['click']" placement="bottomRight">
+        <button type="button" class="app-header__user">
+          <span class="app-header__avatar">{{ userInitial }}</span>
+          <span class="app-header__username">{{ sessionState.user?.name ?? "未登录" }}</span>
+          <DownOutlined class="app-header__caret" />
+        </button>
+        <template #overlay>
+          <a-menu class="app-header__menu">
+            <a-menu-item-group>
+              <template #title>
+                <div class="app-header__profile">
+                  <p class="app-header__profile-name">
+                    {{ sessionState.user?.name ?? "-" }}
+                  </p>
+                  <p class="app-header__profile-line">
+                    <span class="app-header__profile-key">角色</span>
+                    <span>{{ sessionState.user?.role ?? "-" }}</span>
+                  </p>
+                  <p class="app-header__profile-line">
+                    <span class="app-header__profile-key">部门</span>
+                    <span>{{ sessionState.user?.department ?? "-" }}</span>
+                  </p>
+                  <p class="app-header__profile-line">
+                    <span class="app-header__profile-key">能力</span>
+                    <span>知识 / 薪酬 / 个人 / 商旅</span>
+                  </p>
+                </div>
+              </template>
+            </a-menu-item-group>
+            <a-menu-divider />
+            <a-menu-item key="logout" @click="handleLogout">
+              <LogoutOutlined />
+              <span>退出登录</span>
+            </a-menu-item>
+          </a-menu>
+        </template>
+      </a-dropdown>
+    </a-layout-header>
+
+    <a-layout class="workspace-body">
     <a-layout-sider :width="300" class="workspace-sider">
       <AppSidebar
         :sessions="historySessions"
@@ -297,45 +348,29 @@ onMounted(async () => {
 
     <a-layout-content class="workspace-main">
       <div class="workspace-stack">
-        <!-- 顶部：标题 + 新建会话 + 状态卡片 -->
+        <!-- 当前会话标题条：保留新建会话按钮 -->
         <a-card :bordered="false" class="header-card">
-          <div class="header-card__row">
-            <div class="header-card__left">
-              <div class="header-card__top">
-                <a-typography-text type="secondary" class="header-card__eyebrow">
-                  智能工作台
-                </a-typography-text>
-                <a-button type="primary" @click="startNewSession">
-                  <template #icon><PlusOutlined /></template>
-                  新建会话
+          <div class="header-card__top">
+            <h1 class="header-card__title">
+              <span>{{ currentTitle }}</span>
+              <a-tooltip v-if="messages.length" title="重命名当前会话">
+                <a-button
+                  type="text"
+                  shape="circle"
+                  @click="onRenameCurrent"
+                >
+                  <template #icon><EditOutlined /></template>
                 </a-button>
-              </div>
-              <h1 class="header-card__title">
-                <span>{{ currentTitle }}</span>
-                <a-tooltip v-if="messages.length" title="重命名当前会话">
-                  <a-button
-                    type="text"
-                    shape="circle"
-                    @click="onRenameCurrent"
-                  >
-                    <template #icon><EditOutlined /></template>
-                  </a-button>
-                </a-tooltip>
-              </h1>
-              <a-typography-paragraph type="secondary" class="header-card__desc">
-                在一个统一入口中完成知识检索、薪酬查询、个人信息查询与商旅代办。
-              </a-typography-paragraph>
-            </div>
-
-            <div class="status-grid">
-              <StatBadge
-                v-for="item in statusCards"
-                :key="item.label"
-                :label="item.label"
-                :value="item.value"
-              />
-            </div>
+              </a-tooltip>
+            </h1>
+            <a-button type="primary" @click="startNewSession">
+              <template #icon><PlusOutlined /></template>
+              新建会话
+            </a-button>
           </div>
+          <a-typography-paragraph type="secondary" class="header-card__desc">
+            在一个统一入口中完成知识检索、薪酬查询、个人信息查询与商旅代办。
+          </a-typography-paragraph>
         </a-card>
 
         <!-- 快捷模板 -->
@@ -444,6 +479,7 @@ onMounted(async () => {
         />
       </a-modal>
     </a-layout-content>
+    </a-layout>
   </a-layout>
 </template>
 
@@ -453,14 +489,108 @@ onMounted(async () => {
   background: #f8fafc;
 }
 
+/* 顶部全宽 Header */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: 64px;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff !important;
+  border-bottom: 1px solid #fee2e2;
+  box-shadow: 0 2px 12px -8px rgba(15, 23, 42, 0.12);
+}
+
+.app-header__brand {
+  font-size: 20px;
+  font-weight: 800;
+  color: #1f2937;
+  letter-spacing: 0.04em;
+}
+
+.app-header__user {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 6px 6px;
+  border-radius: 999px;
+  background: #fff5f5;
+  border: 1px solid #fee2e2;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.app-header__user:hover {
+  background: #ffe4e6;
+  border-color: #fecaca;
+}
+
+.app-header__avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #b30000;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.app-header__username {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.app-header__caret {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.workspace-body {
+  background: transparent;
+}
+
+/* dropdown 内的资料展示（写在 :deep 也能命中 menu-item-group 的 title 区） */
+.app-header__profile {
+  padding: 10px 12px;
+  min-width: 220px;
+}
+
+.app-header__profile-name {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.app-header__profile-line {
+  margin: 4px 0;
+  font-size: 12.5px;
+  color: #475569;
+  display: flex;
+  gap: 10px;
+}
+
+.app-header__profile-key {
+  display: inline-block;
+  width: 32px;
+  color: #94a3b8;
+}
+
 /* sider 本身 sticky 在视口顶部，自身高度 100vh，让侧边栏永远可见。
    antd 的 a-layout 是 flex row 容器，sticky 在 flex item 上完全可用。 */
 .workspace-sider {
   background: transparent !important;
   position: sticky !important;
-  top: 0;
+  top: 64px;
   align-self: flex-start;
-  height: 100vh !important;
+  height: calc(100vh - 64px) !important;
 }
 
 .workspace-sider :deep(.ant-layout-sider-children) {
@@ -483,20 +613,6 @@ onMounted(async () => {
   padding: 24px 28px;
 }
 
-.header-card__row {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-@media (min-width: 1280px) {
-  .header-card__row {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-}
-
 .header-card__top {
   display: flex;
   align-items: center;
@@ -504,40 +620,20 @@ onMounted(async () => {
   gap: 12px;
 }
 
-.header-card__eyebrow {
-  font-size: 11px;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  color: #b30000 !important;
-}
-
 .header-card__title {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 14px 0 6px;
-  font-size: 28px;
+  margin: 0 0 6px;
+  font-size: 24px;
   font-weight: 800;
   color: #1f2937;
 }
 
 .header-card__desc {
-  margin: 0 !important;
+  margin: 8px 0 0 !important;
   max-width: 720px;
   line-height: 1.7;
-}
-
-.status-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  width: 100%;
-}
-
-@media (min-width: 1280px) {
-  .status-grid {
-    width: 440px;
-  }
 }
 
 /* Chat card */

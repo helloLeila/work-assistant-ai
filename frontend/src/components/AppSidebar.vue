@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { RouterLink, useRoute, useRouter } from "vue-router";
+import { RouterLink, useRoute } from "vue-router";
 import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
-  LogoutOutlined,
 } from "@ant-design/icons-vue";
 
-import { clearSession, sessionState } from "../stores/session";
+import { sessionState } from "../stores/session";
 import type { HistorySession } from "../types";
 
 const props = defineProps<{
@@ -24,8 +23,6 @@ const emit = defineEmits<{
 }>();
 
 const route = useRoute();
-const router = useRouter();
-
 // 行内重命名状态：仅记录"哪一条在编辑 + 草稿值"。
 const editingId = ref<string | null>(null);
 const editingDraft = ref("");
@@ -62,10 +59,6 @@ function cancelEditing(): void {
   editingDraft.value = "";
 }
 
-function logout(): void {
-  clearSession();
-  void router.push("/");
-}
 </script>
 
 <template>
@@ -191,16 +184,6 @@ function logout(): void {
           </div>
         </div>
       </section>
-    </div>
-
-    <!-- 用户信息 -->
-    <div class="user-card">
-      <p class="user-card__name">{{ sessionState.user?.name }}</p>
-      <p class="user-card__role">{{ sessionState.user?.role }}</p>
-      <a-button block size="large" class="logout-btn" @click="logout">
-        <template #icon><LogoutOutlined /></template>
-        退出登录
-      </a-button>
     </div>
   </aside>
 </template>
@@ -446,39 +429,4 @@ function logout(): void {
   color: #cbd5e1;
 }
 
-/* 用户卡片 */
-.user-card {
-  margin-top: 16px;
-  padding: 14px;
-  border-radius: 16px;
-  background: #fafafa;
-  border: 1px solid #f1f5f9;
-}
-
-.user-card__name {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.user-card__role {
-  margin: 3px 0 12px;
-  font-size: 11px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: #64748b;
-}
-
-.logout-btn {
-  background: #b30000 !important;
-  color: #fff !important;
-  border: 0 !important;
-  font-weight: 600 !important;
-}
-
-.logout-btn:hover {
-  background: #990000 !important;
-  color: #fff !important;
-}
 </style>
