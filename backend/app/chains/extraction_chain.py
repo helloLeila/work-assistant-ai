@@ -7,7 +7,7 @@ import re
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from app.core.llm import get_chat_model
+from app.core.llm import get_utility_chat_model
 from app.models.domain import PersonalQuery, TravelInfo
 from app.services.travel_service import get_travel_service
 
@@ -25,7 +25,8 @@ TRAILING_NOISE = re.compile(r"[的市省]+$")
 async def extract_travel_info(query: str) -> TravelInfo:
     """抽取商旅信息。"""
     parser = PydanticOutputParser(pydantic_object=TravelInfo)
-    llm = get_chat_model(temperature=0, tags=["travel_extractor"])
+    # 折中示例、字段抽取,走 utility tier。
+    llm = get_utility_chat_model(temperature=0, tags=["travel_extractor"])
 
     if llm is not None:
         prompt = ChatPromptTemplate.from_messages(
@@ -87,7 +88,7 @@ def _sanitize_travel_info(info: TravelInfo, query: str) -> TravelInfo:
 async def extract_personal_query(query: str) -> PersonalQuery:
     """抽取个人信息查询字段。"""
     parser = PydanticOutputParser(pydantic_object=PersonalQuery)
-    llm = get_chat_model(temperature=0, tags=["personal_extractor"])
+    llm = get_utility_chat_model(temperature=0, tags=["personal_extractor"])
 
     if llm is not None:
         prompt = ChatPromptTemplate.from_messages(
