@@ -51,5 +51,8 @@ async def generate_node(state: dict, runtime) -> dict:
         context="\n\n".join(part for part in context_parts if part),
         sources=state.get("sources", []),
         streamer=runtime.context.streamer,
+        # 写作类长输出由 planner_node 提前规划，generate_node 把大纲透传给 stream_final_answer。
+        # 字段为空字符串/缺失时，stream_final_answer 走无大纲分支。
+        outline=state.get("outline", ""),
     )
     return {"final_answer": final_answer}

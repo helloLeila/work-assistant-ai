@@ -142,8 +142,13 @@ async def stream_final_answer(
     context: str,
     sources: list[dict[str, object]],
     streamer,
+    outline: str = "",
 ) -> str:
-    """生成最终回答，并按 token 流式输出。"""
+    """生成最终回答，并按 token 流式输出。
+
+    outline：planner_node 产出的段落大纲（多行纯文本，每行一段标题 + 字数预算）。
+    传入时会把它注入 system prompt，引导主模型按段展开；空字符串视为'无大纲'。
+    """
     # 业务问答保留 extended thinking；普通写作/闲聊走快速生成，避免首 token 前长时间等待。
     llm = get_chat_model(
         temperature=0.2,
@@ -157,6 +162,12 @@ async def stream_final_answer(
         style_clause = format_style_clause(intent)
         # 长度子句：用户明确写了"X字"才注入，否则保持原行为。
         length_clause = length_target_clause(detect_length_request(query))
+        # 大纲子句：planner_node 给出大纲时，让模型严格按段展开，提升长文均衡度。
+        outline_clause = (
+            f"\n\n段落规划（请严格按此大纲分段展开，每段写够字数预算）:\n{outline}"
+            if outline.strip()
+            else ""
+        )
         prompt = ChatPromptTemplate.from_messages(
             [
                 (
@@ -172,7 +183,7 @@ async def stream_final_answer(
                     "4. 如果上下文是检索片段，请综合后给出结论，并在末尾自然提及来源文件名。\n"
                     "5. 如果上下文不足以回答，需明确说明无法确认的部分。\n"
                     "6. 闲聊或常识问题：上下文为空时，正常友好地回答即可。\n\n"
-                    f"{style_clause}{length_clause}",
+                    f"{style_clause}{length_clause}{outline_clause}",
                 ),
                 (
                     "human",
