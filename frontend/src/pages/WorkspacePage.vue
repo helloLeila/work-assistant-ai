@@ -73,8 +73,9 @@ function scrollChatToBottom(): void {
 }
 
 // 任意一条消息内容变化（包括 token 流式追加）都把容器滚到最下面。
+// 只看"末条消息的长度"，避免 map().join() 把所有历史贴拼一遍（O(N) -> O(1)）。
 watch(
-  () => messages.value.map((item) => item.content).join("|"),
+  () => [messages.value.length, messages.value[messages.value.length - 1]?.content.length ?? 0],
   () => scrollChatToBottom(),
 );
 
@@ -207,26 +208,53 @@ async function sendMessage(input?: unknown): Promise<void> {
 
   const assistantMessage = appendAssistantMessage();
 
-  streamHandle?.close();
-  streamHandle = openChatStream(currentSessionId.value, query, {
-    onToken(token) {
-      // 第一个真正的回答 token 抵达时，思考阶段结束：
-      // 1. 计时停止（thinkingEndAt 落定）
-      // 2. 折叠思考块（豆包行为：进入正式回答后自动收起，避免抢占焦点）
+  // === rAF 节流缓冲区 ===
+  // 为什么要这个：上游 SSE 可能一帧内抵达多个 token，每个都直接改 reactive
+  // 会触发多次重渲染 + 全文 markdown 重解析。累加到 pending，每帧 flush 一次。
+  let pendingContent = "";
+  let pendingThinking = "";
+  let flushScheduled = false;
+
+  function flushPending(): void {
+    if (pendingContent) {
+      // 首个正式 token 落地时处理思考阶段结束，与原逻辑一致。
       if (assistantMessage.isThinking) {
         assistantMessage.isThinking = false;
         assistantMessage.thinkingEndAt = Date.now();
         assistantMessage.thinkingExpanded = false;
       }
-      assistantMessage.content += token;
+      assistantMessage.content += pendingContent;
+      pendingContent = "";
+    }
+    if (pendingThinking) {
+      assistantMessage.thinking = (assistantMessage.thinking ?? "") + pendingThinking;
+      pendingThinking = "";
+    }
+    flushScheduled = false;
+  }
+
+  function scheduleFlush(): void {
+    if (flushScheduled) return;
+    flushScheduled = true;
+    requestAnimationFrame(flushPending);
+  }
+
+  streamHandle?.close();
+  streamHandle = openChatStream(currentSessionId.value, query, {
+    onToken(token) {
+      pendingContent += token;
+      scheduleFlush();
     },
     onThinking(chunk) {
-      assistantMessage.thinking = (assistantMessage.thinking ?? "") + chunk;
+      pendingThinking += chunk;
+      scheduleFlush();
     },
     onSources(sources: SourceFile[]) {
       assistantMessage.sources = sources;
     },
     async onDone() {
+      // 上流结束前先把缓冲区里最后那一点 token 同步冲出去，避免丢尾。
+      flushPending();
       // 兜底：极端情况下整轮没有正式 token（例如纯 thinking 后流就结束了），
       // 也要把 isThinking 收尾，避免气泡一直转圈。
       if (assistantMessage.isThinking) {
@@ -238,6 +266,7 @@ async function sendMessage(input?: unknown): Promise<void> {
       await loadHistory();
     },
     onError(message) {
+      flushPending();
       assistantMessage.isThinking = false;
       assistantMessage.isStreaming = false;
       streaming.value = false;
@@ -292,7 +321,15 @@ onMounted(async () => {
   <a-layout class="workspace-layout">
     <!-- 顶部全宽 Header：左侧品牌名占满左边，右侧用户菜单 -->
     <a-layout-header class="app-header">
-      <div class="app-header__brand">企业智能办公助手</div>
+      <!-- <div class="app-header__brand">企业智能办公助手</div> -->
+       <!-- 品牌区 -->
+      <div class="app-header__brand">
+       
+       
+          企业智能办公助手 （RuiRui AI）
+         
+
+      </div>
 
       <!-- 个人信息：点击头像展开下拉，包含姓名/角色/部门/退出 -->
       <a-dropdown :trigger="['click']" placement="bottomRight">
@@ -368,9 +405,9 @@ onMounted(async () => {
               新建会话
             </a-button>
           </div>
-          <a-typography-paragraph type="secondary" class="header-card__desc">
+          <!-- <a-typography-paragraph type="secondary" class="header-card__desc">
             在一个统一入口中完成知识检索、薪酬查询、个人信息查询与商旅代办。
-          </a-typography-paragraph>
+          </a-typography-paragraph> -->
         </a-card>
 
         <!-- 快捷模板 -->
@@ -383,7 +420,7 @@ onMounted(async () => {
               <a-typography-text type="secondary" class="chat-card__eyebrow">
                 对话区
               </a-typography-text>
-              <h2 class="chat-card__title">与企业智能办公助手交流</h2>
+              <!-- <h2 class="chat-card__title">与企业智能办公助手交流</h2> -->
             </div>
             <a-tag :color="streaming ? 'processing' : 'success'">
               {{ streaming ? "处理中" : "空闲" }}
@@ -530,7 +567,7 @@ onMounted(async () => {
 
 .app-header__avatar {
   width: 30px;
-  height: 30px;
+  height: 25px;
   border-radius: 50%;
   background: #b30000;
   color: #fff;
@@ -545,6 +582,7 @@ onMounted(async () => {
   font-size: 13.5px;
   font-weight: 600;
   color: #1f2937;
+  height: 100%;
 }
 
 .app-header__caret {
