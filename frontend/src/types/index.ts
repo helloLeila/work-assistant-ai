@@ -14,6 +14,25 @@ export interface SourceFile {
   snippet: string;
 }
 
+/** LangGraph 节点级进度。后端每进入/离开一个节点都 push 一次，
+ * 前端把它们累计成可视化的"步骤列表"——比如：
+ *   ⟳ 检索知识库...
+ *   ✓ 已筛选相关内容
+ *   ⟳ 组织答案中...
+ * 用来填补"模型还没吐 token"那段冷场时间。 */
+export interface ChatStep {
+  /** 稳定的机器 id（intent / retrieve / grade / generate ...），用于 upsert。 */
+  id: string;
+  /** 给用户看的中文描述，可以随节点动态变化。 */
+  label: string;
+  /** running = 进行中（spinner），done = 已完成（对勾）。 */
+  state: "running" | "done";
+  /** 进入该步骤的时间戳（ms）。可以拿来显示"耗时 1.2s"。 */
+  startedAt: number;
+  /** 离开该步骤的时间戳（ms）。仅 state=done 时有值。 */
+  endedAt?: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -32,6 +51,8 @@ export interface ChatMessage {
   thinkingExpanded?: boolean;
   /** 整个 SSE 流是否还在进行中。done/error 后置 false，用来驱动尾部打字光标。 */
   isStreaming?: boolean;
+  /** 后端 LangGraph 节点的实时进度列表，按发生顺序保存。 */
+  steps?: ChatStep[];
 }
 
 export interface KnowledgeDocument {

@@ -180,6 +180,10 @@ function appendAssistantMessage(): ChatMessage {
     thinkingExpanded: true,
     // 标记 SSE 流进行中，用于在气泡尾部显示闪烁光标，让用户能看到"还在生成"。
     isStreaming: true,
+    // LangGraph 节点级进度。后端每进入/离开一个节点 push 一条，
+    // 前端在思考块里渲染成"⟳ 检索知识库 / ✓ 已筛选相关内容"等步骤列表，
+    // 填补"模型还没吐 token"那段冷场（典型 RAG 场景 8-15s）。
+    steps: [],
   };
   messages.value.push(message);
   // push 后必须从数组里再取出来，拿到的才是 Vue 包过的 reactive proxy；
@@ -248,6 +252,27 @@ async function sendMessage(input?: unknown): Promise<void> {
     onThinking(chunk) {
       pendingThinking += chunk;
       scheduleFlush();
+    },
+    onStatus(step, label, state) {
+      // 节点状态频率不高（一次对话约 3-6 条），不必走 rAF 节流，直接 upsert 到 steps。
+      // 同一 step 重复出现就更新（例如 running -> done 的切换），新 step 追加在末尾。
+      const steps = assistantMessage.steps ?? [];
+      const existing = steps.find((item) => item.id === step);
+      const now = Date.now();
+      if (existing) {
+        existing.label = label;
+        existing.state = state;
+        if (state === "done") existing.endedAt = now;
+      } else {
+        steps.push({
+          id: step,
+          label,
+          state,
+          startedAt: now,
+          endedAt: state === "done" ? now : undefined,
+        });
+      }
+      assistantMessage.steps = steps;
     },
     onSources(sources: SourceFile[]) {
       assistantMessage.sources = sources;

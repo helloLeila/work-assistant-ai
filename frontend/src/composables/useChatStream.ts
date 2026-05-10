@@ -5,6 +5,10 @@ import type { SourceFile } from "../types";
 type StreamHandlers = {
   onToken: (token: string) => void;
   onThinking?: (chunk: string) => void;
+  /** 后端 LangGraph 节点级进度。step 是稳定 id（intent/retrieve/grade/...），
+   * label 是给用户看的中文，state 取 running | done。
+   * 在'模型还没吐 token'的几秒里，前端用这个事件驱动"步骤列表"UI。 */
+  onStatus?: (step: string, label: string, state: "running" | "done") => void;
   onSources: (sources: SourceFile[]) => void;
   onDone: () => void;
   onError: (message: string) => void;
@@ -35,6 +39,9 @@ export function openChatStream(
       content?: string;
       files?: SourceFile[];
       message?: string;
+      step?: string;
+      label?: string;
+      state?: "running" | "done";
     };
 
     if (payload.type === "token") {
@@ -44,6 +51,15 @@ export function openChatStream(
 
     if (payload.type === "thinking") {
       handlers.onThinking?.(payload.content ?? "");
+      return;
+    }
+
+    if (payload.type === "status") {
+      // step/label/state 三件套来自后端 SSEStreamer.push_status。
+      // 缺字段直接忽略，让前端对协议升级保持兼容。
+      if (payload.step && payload.label && payload.state) {
+        handlers.onStatus?.(payload.step, payload.label, payload.state);
+      }
       return;
     }
 

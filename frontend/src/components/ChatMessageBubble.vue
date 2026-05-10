@@ -29,10 +29,18 @@ function stopTimer() {
   }
 }
 
+// 心跳要在两种情况下运行：
+// 1. 还在思考中（驱动"思考中 X.Xs"秒表）
+// 2. 还有 running 状态的节点步骤（驱动该步骤的实时耗时显示，例如"组织答案中... 2.1s"）
+const needsLiveTimer = computed(
+  () =>
+    Boolean(props.message.isThinking) ||
+    (props.message.steps?.some((step) => step.state === "running") ?? false),
+);
 watch(
-  () => props.message.isThinking,
-  (isThinking) => {
-    if (isThinking) {
+  needsLiveTimer,
+  (needs) => {
+    if (needs) {
       startTimer();
     } else {
       stopTimer();
@@ -56,9 +64,27 @@ const thinkingDurationLabel = computed(() => {
 // 是否要显示豆包风格的"思考链"块：
 // 1. 正在思考中（即使 thinking 文本还是空的，也显示带秒表的占位条）
 // 2. 已经收到过 thinking 文本（结束后保留为可展开的"已深度思考"块）
+// 3. 有 LangGraph 节点级进度需要展示（即使模型不走 reasoning，节点状态也能撑场）
 const showThinkingBlock = computed(() => {
-  return Boolean(props.message.isThinking || props.message.thinking);
+  return Boolean(
+    props.message.isThinking ||
+      props.message.thinking ||
+      (props.message.steps && props.message.steps.length > 0),
+  );
 });
+
+/** 步骤列表是否还要继续显示。
+ * - 流仍在进行中：显示，让用户看进度
+ * - 流已结束：仍保留，让用户能回顾经过了哪些节点（与 Claude Code/Cursor 一致） */
+const stepsList = computed(() => props.message.steps ?? []);
+
+/** 单个步骤已经耗时多久（仅 done 状态展示静态值，running 状态用心跳实时刷新）。 */
+function stepDurationLabel(step: { startedAt: number; endedAt?: number }): string {
+  const end = step.endedAt ?? liveNow.value;
+  const ms = Math.max(0, end - step.startedAt);
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
 
 function toggleThinking() {
   // Vue 的响应式代理直接改 prop 字段是合法的（父组件传的是 reactive 对象引用）。
@@ -158,6 +184,30 @@ const htmlContent = computed(() => {
             </svg>
           </span>
         </button>
+        <!-- LangGraph 节点级进度列表：撑住"模型还没吐 token"的冷场。
+             - running 步骤：左侧 spinner + 实时耗时
+             - done 步骤：左侧灰色对勾 + 凝固耗时
+             无论 thinkingExpanded 状态如何都展示，因为这是关键的"它现在在干什么"信息。 -->
+        <ul v-if="stepsList.length" class="thinking__steps">
+          <li
+            v-for="step in stepsList"
+            :key="step.id"
+            class="thinking__step"
+            :class="`thinking__step--${step.state}`"
+          >
+            <span class="thinking__step-icon" aria-hidden="true">
+              <span v-if="step.state === 'running'" class="thinking__step-spinner" />
+              <svg v-else viewBox="0 0 12 12" width="11" height="11">
+                <path
+                  fill="currentColor"
+                  d="M10.28 3.22a.75.75 0 0 1 0 1.06l-5 5a.75.75 0 0 1-1.06 0l-2.5-2.5a.75.75 0 0 1 1.06-1.06L4.75 7.69l4.47-4.47a.75.75 0 0 1 1.06 0Z"
+                />
+              </svg>
+            </span>
+            <span class="thinking__step-label">{{ step.label }}</span>
+            <span class="thinking__step-duration">{{ stepDurationLabel(step) }}</span>
+          </li>
+        </ul>
         <div v-if="message.thinkingExpanded && message.thinking" class="thinking__body">
           {{ message.thinking }}
         </div>
@@ -502,5 +552,71 @@ const htmlContent = computed(() => {
   margin-top: 0;
   padding-top: 8px;
   font-size: 12.5px;
+}
+
+/* === LangGraph 节点级步骤列表 === */
+.thinking__steps {
+  margin: 0;
+  padding: 4px 12px 10px 36px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.06);
+  padding-top: 8px;
+}
+
+.thinking__step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.thinking__step--running {
+  color: #6d28d9;
+  font-weight: 500;
+}
+
+.thinking__step--done {
+  color: #9ca3af;
+}
+
+.thinking__step-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.thinking__step--done .thinking__step-icon {
+  color: #10b981;
+}
+
+.thinking__step-spinner {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.6px solid rgba(139, 92, 246, 0.25);
+  border-top-color: #8b5cf6;
+  animation: thinking-spin 0.9s linear infinite;
+}
+
+.thinking__step-label {
+  flex: 1;
+}
+
+.thinking__step-duration {
+  font-size: 11px;
+  color: #b3b8c2;
+}
+
+.thinking__step--running .thinking__step-duration {
+  color: #a78bfa;
 }
 </style>
