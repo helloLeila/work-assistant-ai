@@ -13,7 +13,7 @@ def test_upload_list_and_delete_document() -> None:
 
     login_response = client.post(
         "/api/auth/login",
-        json={"username": "wang.hr", "password": "TongTong123!"},
+        json={"username": "wang.hr", "password": "RuiRui123!"},
     )
     token = login_response.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}

@@ -11,7 +11,7 @@ def test_login_and_refresh_flow() -> None:
 
     login_response = client.post(
         "/api/auth/login",
-        json={"username": "li.wei", "password": "TongTong123!"},
+        json={"username": "li.wei", "password": "RuiRui123!"},
     )
 
     assert login_response.status_code == 200

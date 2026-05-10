@@ -2,7 +2,7 @@ import { computed, reactive } from "vue";
 
 import type { SessionTokens, UserProfile } from "../types";
 
-const STORAGE_KEY = "tongtong_session";
+const STORAGE_KEY = "ruirui_session";
 
 type SessionState = {
   accessToken: string;

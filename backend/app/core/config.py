@@ -61,20 +61,20 @@ class Settings(BaseSettings):
 
     langsmith_tracing_v2: bool = False
     langsmith_api_key: str = ""
-    langsmith_project: str = "tongtong-office-assistant"
+    langsmith_project: str = "ruirui-office-assistant"
     langsmith_endpoint: str = "https://api.smith.langchain.com"
 
-    jwt_secret_key: str = "tongtong-access-secret"
-    jwt_refresh_secret_key: str = "tongtong-refresh-secret"
+    jwt_secret_key: str = "ruirui-access-secret"
+    jwt_refresh_secret_key: str = "ruirui-refresh-secret"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 120
     refresh_token_expire_days: int = 7
 
     postgres_host: str = "localhost"
     postgres_port: int = 5432
-    postgres_db: str = "tongtong"
-    postgres_user: str = "tongtong"
-    postgres_password: str = "tongtong"
+    postgres_db: str = "ruirui"
+    postgres_user: str = "ruirui"
+    postgres_password: str = "ruirui"
     business_db_backend: str = "auto"
     postgres_connect_timeout_seconds: int = 2
 

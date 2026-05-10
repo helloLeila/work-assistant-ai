@@ -6,7 +6,7 @@ EMPLOYEES: list[dict[str, object]] = [
     {
         "user_id": "u-1001",
         "username": "li.wei",
-        "password": "TongTong123!",
+        "password": "RuiRui123!",
         "name": "李伟",
         "role": "employee",
         "department": "Finance",
@@ -19,7 +19,7 @@ EMPLOYEES: list[dict[str, object]] = [
     {
         "user_id": "u-1002",
         "username": "zhao.qin",
-        "password": "TongTong123!",
+        "password": "RuiRui123!",
         "name": "赵琴",
         "role": "employee",
         "department": "HR",
@@ -32,7 +32,7 @@ EMPLOYEES: list[dict[str, object]] = [
     {
         "user_id": "u-2001",
         "username": "zhang.min",
-        "password": "TongTong123!",
+        "password": "RuiRui123!",
         "name": "张敏",
         "role": "manager",
         "department": "Finance",
@@ -45,7 +45,7 @@ EMPLOYEES: list[dict[str, object]] = [
     {
         "user_id": "u-3001",
         "username": "wang.hr",
-        "password": "TongTong123!",
+        "password": "RuiRui123!",
         "name": "王静",
         "role": "hr_admin",
         "department": "HR",
@@ -58,7 +58,7 @@ EMPLOYEES: list[dict[str, object]] = [
     {
         "user_id": "u-4001",
         "username": "chen.kb",
-        "password": "TongTong123!",
+        "password": "RuiRui123!",
         "name": "陈楠",
         "role": "knowledge_admin",
         "department": "IT",

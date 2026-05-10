@@ -11,7 +11,7 @@ def test_chat_stream_returns_sse_events() -> None:
 
     login_response = client.post(
         "/api/auth/login",
-        json={"username": "li.wei", "password": "TongTong123!"},
+        json={"username": "li.wei", "password": "RuiRui123!"},
     )
     token = login_response.json()["access_token"]
 
@@ -37,7 +37,7 @@ def test_chat_stream_get_supports_event_source_token_query() -> None:
 
     login_response = client.post(
         "/api/auth/login",
-        json={"username": "li.wei", "password": "TongTong123!"},
+        json={"username": "li.wei", "password": "RuiRui123!"},
     )
     token = login_response.json()["access_token"]
 

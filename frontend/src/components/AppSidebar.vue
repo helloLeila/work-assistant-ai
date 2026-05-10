@@ -66,9 +66,9 @@ function cancelEditing(): void {
     <div class="space-y-7">
       <!-- 品牌区 -->
       <div class="brand-card">
-        <div class="brand-logo">T</div>
+        <div class="brand-logo">R</div>
         <div>
-          <p class="brand-eyebrow">TongTong AI</p>
+          <p class="brand-eyebrow">RuiRui AI</p>
           <p class="brand-title">企业智能办公助手</p>
         </div>
       </div>
