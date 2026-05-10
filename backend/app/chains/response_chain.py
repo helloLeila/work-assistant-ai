@@ -135,6 +135,38 @@ async def _stream_chunk_to_streamer(chunk_content: Any, streamer) -> str:
     return visible
 
 
+def build_writer_system_prompt(*, intent: str, query: str, outline: str) -> str:
+    """组装最终回答 writer 的 system prompt 字符串。
+
+    抽出来是为了让"格式子句 + 长度子句 + 大纲子句"三段拼接逻辑可被单独单测,
+    不必动到流式 LLM/SSEStreamer 才能验证 outline/length 是否正确注入。
+
+    三段都放在 system prompt **末尾**——LLM 对 recent context 的注意力比 instruction 开头更高,
+    设计动机详见 docs/agent-design/03-output-format-and-length.md。
+    """
+    style_clause = format_style_clause(intent)
+    length_clause = length_target_clause(detect_length_request(query))
+    outline_clause = (
+        f"\n\n段落规划（请严格按此大纲分段展开，每段写够字数预算）:\n{outline}"
+        if outline.strip()
+        else ""
+    )
+    return (
+        "你是企业智能办公助手，请用**自然、流畅的中文**回答用户的问题。\n\n"
+        "硬性要求：\n"
+        "1. **绝对不要直接复述 JSON 或 dict 格式数据**，要把里面的字段翻译成人话。"
+        "  例如 `{{\"from_city\": \"上海\", \"date\": \"2026-05-19\"}}` 应转写为"
+        "  「已为你提交一笔出行申请：5 月 19 日从上海出发」。\n"
+        "2. 答案应像真人客服一样总结要点，不要在回答中出现"
+        "  花括号、引号、`null`、`true/false` 等编程术语。\n"
+        "3. 如果上下文里有订单号、金额、日期等关键字段，要点出来。\n"
+        "4. 如果上下文是检索片段，请综合后给出结论，并在末尾自然提及来源文件名。\n"
+        "5. 如果上下文不足以回答，需明确说明无法确认的部分。\n"
+        "6. 闲聊或常识问题：上下文为空时，正常友好地回答即可。\n\n"
+        f"{style_clause}{length_clause}{outline_clause}"
+    )
+
+
 async def stream_final_answer(
     *,
     query: str,
@@ -158,32 +190,14 @@ async def stream_final_answer(
     )
 
     if llm is not None:
-        # 格式子句按 intent 动态切换；放在 system 末尾以利用 LLM 的 recency bias。
-        style_clause = format_style_clause(intent)
-        # 长度子句：用户明确写了"X字"才注入，否则保持原行为。
-        length_clause = length_target_clause(detect_length_request(query))
-        # 大纲子句：planner_node 给出大纲时，让模型严格按段展开，提升长文均衡度。
-        outline_clause = (
-            f"\n\n段落规划（请严格按此大纲分段展开，每段写够字数预算）:\n{outline}"
-            if outline.strip()
-            else ""
-        )
+        # 格式 / 长度 / 大纲三段拼接逻辑抽到 build_writer_system_prompt(),便于单测。
+        style_clause = format_style_clause(intent)  # 续写循环还会复用 style_clause
+        system_prompt = build_writer_system_prompt(intent=intent, query=query, outline=outline)
         prompt = ChatPromptTemplate.from_messages(
             [
                 (
                     "system",
-                    "你是企业智能办公助手，请用**自然、流畅的中文**回答用户的问题。\n\n"
-                    "硬性要求：\n"
-                    "1. **绝对不要直接复述 JSON 或 dict 格式数据**，要把里面的字段翻译成人话。"
-                    "  例如 `{{\"from_city\": \"上海\", \"date\": \"2026-05-19\"}}` 应转写为"
-                    "  「已为你提交一笔出行申请：5 月 19 日从上海出发」。\n"
-                    "2. 答案应像真人客服一样总结要点，不要在回答中出现"
-                    "  花括号、引号、`null`、`true/false` 等编程术语。\n"
-                    "3. 如果上下文里有订单号、金额、日期等关键字段，要点出来。\n"
-                    "4. 如果上下文是检索片段，请综合后给出结论，并在末尾自然提及来源文件名。\n"
-                    "5. 如果上下文不足以回答，需明确说明无法确认的部分。\n"
-                    "6. 闲聊或常识问题：上下文为空时，正常友好地回答即可。\n\n"
-                    f"{style_clause}{length_clause}{outline_clause}",
+                    system_prompt,
                 ),
                 (
                     "human",

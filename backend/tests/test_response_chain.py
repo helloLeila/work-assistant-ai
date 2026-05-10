@@ -5,6 +5,7 @@ from __future__ import annotations
 from app.chains.response_chain import (
     CONTINUATION_MAX_ITERATIONS,
     CONTINUATION_THRESHOLD,
+    build_writer_system_prompt,
     detect_length_request,
     format_style_clause,
     length_target_clause,
@@ -124,3 +125,46 @@ def test_continuation_constants_are_sane() -> None:
     assert 0.7 <= CONTINUATION_THRESHOLD <= 0.9
     # 1 次续写不够应对极端低估，3 次以上对延迟影响过大
     assert CONTINUATION_MAX_ITERATIONS in (2, 3)
+
+
+# ===== Writer system prompt 拼接 =====
+
+
+def test_build_writer_system_prompt_no_outline_no_length() -> None:
+    """无大纲 + 无字数要求时,不应出现规划/字数子句。"""
+    prompt = build_writer_system_prompt(intent="chitchat", query="hello", outline="")
+    assert "段落规划" not in prompt
+    assert "字数要求" not in prompt
+    # 风格子句仍按 intent 注入
+    assert "散文" in prompt
+
+
+def test_build_writer_system_prompt_injects_outline_at_tail() -> None:
+    """有大纲时,大纲必须出现在 prompt 末尾(LLM recency bias)。"""
+    outline = "第 1 段（~300 字）: 引入背景\n第 2 段（~400 字）: 展开论点"
+    prompt = build_writer_system_prompt(
+        intent="chitchat", query="生成 1000 字", outline=outline
+    )
+    assert "段落规划" in prompt
+    assert outline in prompt
+    # 必须在 prompt 末尾(后于硬性要求 / 风格子句)
+    assert prompt.index("段落规划") > prompt.index("硬性要求")
+    # 同时长度子句也注入了
+    assert "1000 字" in prompt
+
+
+def test_build_writer_system_prompt_outline_clause_skipped_when_blank() -> None:
+    """空白 outline(全空格/换行)等价于无大纲,不污染 prompt。"""
+    prompt = build_writer_system_prompt(
+        intent="chitchat", query="写 800 字", outline="   \n  "
+    )
+    assert "段落规划" not in prompt
+    # 有字数要求,长度子句仍正常出现
+    assert "800 字" in prompt
+
+
+def test_build_writer_system_prompt_business_intent_uses_markdown_style() -> None:
+    """business intent 走 markdown 风格,不应禁用 markdown。"""
+    prompt = build_writer_system_prompt(intent="knowledge", query="差旅政策", outline="")
+    assert "markdown" in prompt
+    assert "不要使用** markdown" not in prompt
