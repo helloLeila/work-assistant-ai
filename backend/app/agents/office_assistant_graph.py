@@ -137,7 +137,7 @@ def get_office_assistant_graph():
     # 所以放心地把 chitchat 路径都串过它，不会增加无关请求的延迟。
     builder.add_node(
         "planner_node",
-        _with_status(planner_node, step="plan", label="规划写作大纲"),
+        _with_status(planner_node, step="plan", label="规划写作大纲", takes_runtime=True),
     )
     # generate_node 需要 runtime（拿 streamer 去流 token），单独走 takes_runtime=True。
     builder.add_node(
