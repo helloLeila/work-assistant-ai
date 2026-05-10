@@ -14,7 +14,7 @@
 
 - 前端：Vue 3 + Vite + Tailwind CSS
 - 后端：FastAPI + SSE 流式输出
-- 模型层：OpenAI GPT-4o / OpenAI 兼容模型
+- 模型层：Minimax 2.7/ OpenAI 兼容模型
 - AI 编排：
   - LangChain 负责检索、提示词、输出解析、工具调用
   - LangGraph 负责状态、路由、条件边、重试、Checkpoint
