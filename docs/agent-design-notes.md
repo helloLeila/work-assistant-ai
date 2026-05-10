@@ -16,6 +16,7 @@
 2. [推理模型 vs 工具模型的分工](./agent-design/02-routing-and-model-tiers.md)
 3. [输出格式、长度预算与流式渲染](./agent-design/03-output-format-and-length.md)
 4. [Planner-then-Writer:长输出的两段式生成](./agent-design/04-planner-then-writer.md)
+5. [20-Commit 实施路线与回归说明](./agent-design/05-implementation-roadmap.md)
 
 ---
 
