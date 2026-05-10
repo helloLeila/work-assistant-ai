@@ -66,6 +66,27 @@ def detect_length_request(query: str) -> int | None:
     return target
 
 
+# Continuation 续写：当首轮答案显著低于目标字数时，触发"在前文基础上继续展开"。
+# 阈值 0.85 = 实际字数 / 目标字数；低于此触发。设置过松（如 0.95）会频繁触发续写、
+# 体感卡顿；过严（如 0.6）会让 1000 字目标产 600 字也躺平不补。0.85 是经验值。
+CONTINUATION_THRESHOLD = 0.85
+# 最多续写次数。超过这个次数即使仍不达标也停止，避免模型陷入"越写越短"的死循环。
+CONTINUATION_MAX_ITERATIONS = 2
+
+
+def should_continue_writing(current_chars: int, target: int | None) -> bool:
+    """判断是否还需要继续续写。
+
+    规则：
+    - 用户没明确字数 → 不续写（保持原行为）
+    - 当前已达 target * CONTINUATION_THRESHOLD → 已达标，不续写
+    - 否则需要续写
+    """
+    if target is None:
+        return False
+    return current_chars < int(target * CONTINUATION_THRESHOLD)
+
+
 def length_target_clause(target: int | None) -> str:
     """生成"字数要求"子句，拼到 system prompt 末尾。
 
@@ -178,6 +199,57 @@ async def stream_final_answer(
             visible = await _stream_chunk_to_streamer(chunk.content, streamer)
             if visible:
                 visible_chunks.append(visible)
+
+        # ===== Continuation 续写循环 =====
+        # 用户写了"X 字"且首轮没达标时，让模型在前文基础上继续展开。
+        # 设计灵感来自 Claude Code 的"先写骨架再填实"工作流：分多轮流式输出，
+        # 而不是要求一次性写到位（那种方式 RLHF 模型容易低估收尾）。
+        target = detect_length_request(query)
+        iteration = 0
+        while iteration < CONTINUATION_MAX_ITERATIONS and should_continue_writing(
+            sum(len(chunk) for chunk in visible_chunks), target
+        ):
+            iteration += 1
+            current_text = "".join(visible_chunks)
+            current_chars = len(current_text)
+            assert target is not None  # should_continue_writing 已保证
+            await streamer.push_status(
+                step="generate",
+                label=f"继续展开（第 {iteration} 次，已 {current_chars} 字 / 目标 {target} 字）",
+                state="running",
+            )
+            cont_prompt = ChatPromptTemplate.from_messages(
+                [
+                    (
+                        "system",
+                        "你是企业智能办公助手。前面已经写了一部分回答，"
+                        "现在要在不重复已有内容的前提下继续展开补足字数。"
+                        "**不要重述前文已有结论**，直接续写后面的段落或细节。"
+                        f"{style_clause}",
+                    ),
+                    (
+                        "human",
+                        "用户原问题：{query}\n"
+                        "已写出的回答（{current_chars} 字）：\n{current_text}\n\n"
+                        "目标字数 ~{target} 字，还差约 {gap} 字。"
+                        "请继续把回答补足到目标长度，注意承接前文，不要重复。",
+                    ),
+                ]
+            )
+            cont_chain = cont_prompt | llm
+            async for chunk in cont_chain.astream(
+                {
+                    "query": query,
+                    "current_chars": current_chars,
+                    "current_text": current_text,
+                    "target": target,
+                    "gap": max(0, target - current_chars),
+                }
+            ):
+                visible = await _stream_chunk_to_streamer(chunk.content, streamer)
+                if visible:
+                    visible_chunks.append(visible)
+
         return "".join(visible_chunks)
 
     # LLM 不可用时的兜底：不要把 JSON 直接吐给用户，给出有礼貌的占位回答。
