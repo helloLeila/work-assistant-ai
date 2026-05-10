@@ -50,7 +50,15 @@ async def stream_final_answer(
     streamer,
 ) -> str:
     """生成最终回答，并按 token 流式输出。"""
-    llm = get_chat_model(temperature=0.2, streaming=True, tags=["final_response"])
+    # 这里是用户面对的最终答案生成，开 extended thinking 让推理模型把"思考过程"流到 UI，
+    # 配合前端折叠块即可展示豆包/Claude 风格的"思考中…"实时内容；
+    # 关掉只需要把 ANTHROPIC_THINKING_BUDGET 设为 0。
+    llm = get_chat_model(
+        temperature=0.2,
+        streaming=True,
+        tags=["final_response"],
+        enable_thinking=True,
+    )
 
     if llm is not None:
         prompt = ChatPromptTemplate.from_messages(

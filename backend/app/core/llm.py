@@ -55,11 +55,19 @@ def get_chat_model(
     temperature: float = 0.1,
     streaming: bool = False,
     tags: Sequence[str] | None = None,
+    enable_thinking: bool = False,
 ) -> BaseChatModel | None:
     """按配置创建聊天模型。
 
     返回类型用 BaseChatModel，因为底层可能是 ChatOpenAI 也可能是 ChatAnthropic，
     但调用侧只用到 LangChain 通用接口（astream / invoke / | 管道），不会感知差异。
+
+    enable_thinking=True 时（仅 anthropic 协议有效）会开启 extended thinking：
+    - 在请求里带 thinking={"type": "enabled", "budget_tokens": ...}
+    - Anthropic 规范要求开启 thinking 时 temperature 必须为 1，会强制覆盖。
+    - max_tokens 必须 > thinking_budget，否则模型直接报错。
+    意图分类、grading、字段抽取等需要确定性 JSON 输出的链路务必保持默认 False，
+    否则 budget_tokens 会被消耗在没用的"内省"上，反而降低稳定性。
     """
     settings = get_settings()
     provider = settings.active_llm_provider
@@ -70,13 +78,28 @@ def get_chat_model(
 
     try:
         if provider == "anthropic":
-            return ChatAnthropic(
+            anthropic_kwargs: dict[str, Any] = {
                 **_build_anthropic_client_kwargs(),
-                model=settings.anthropic_model,
-                temperature=temperature,
-                streaming=streaming,
-                tags=tag_list,
-            )
+                "model": settings.anthropic_model,
+                "temperature": temperature,
+                "streaming": streaming,
+                "tags": tag_list,
+            }
+            # 仅在调用方显式打开、且全局 budget>0 时才挂 thinking 参数；
+            # 这样关掉 budget（=0）也能等同于完全禁用 thinking，对供应商友好。
+            if enable_thinking and settings.anthropic_thinking_budget > 0:
+                anthropic_kwargs["thinking"] = {
+                    "type": "enabled",
+                    "budget_tokens": settings.anthropic_thinking_budget,
+                }
+                # Anthropic 协议要求开 thinking 时 temperature=1，否则会 400。
+                anthropic_kwargs["temperature"] = 1.0
+                # max_tokens 必须严格大于 thinking_budget，预留答案 token 空间。
+                anthropic_kwargs["max_tokens"] = max(
+                    settings.anthropic_max_tokens,
+                    settings.anthropic_thinking_budget + 1024,
+                )
+            return ChatAnthropic(**anthropic_kwargs)
         # 默认走 OpenAI 协议
         return ChatOpenAI(
             **_build_openai_client_kwargs(),

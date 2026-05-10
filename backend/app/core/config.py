@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_base_url: str = ""
     anthropic_model: str = "claude-3-5-sonnet-latest"
+    # 推理模型（Claude 3.7+ extended thinking / MiniMax M2.x）的思考预算 token 数。
+    # 0 = 禁用，不让模型走 thinking 通道；>0 = 开启并允许模型最多消耗这么多 token 在内部推理上。
+    # 仅对生成最终答案的链路生效，意图分类/抽取等需要确定性输出的小链路始终关闭。
+    anthropic_thinking_budget: int = 4000
+    # 开启 thinking 时单次响应的最大 token 上限，必须 > thinking_budget，给正式答案留空间。
+    anthropic_max_tokens: int = 8192
 
     langsmith_tracing_v2: bool = False
     langsmith_api_key: str = ""
