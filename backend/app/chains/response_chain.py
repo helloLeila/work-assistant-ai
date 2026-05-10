@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from typing import Any
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -39,6 +40,46 @@ def format_style_clause(intent: str) -> str:
         "格式偏好：用自然流畅的中文段落，**不要使用** markdown 标题（##）、"
         "无序列表（- ）、加粗（**）等任何 markdown 语法，直接写散文。"
         "段落之间用空行分隔即可。"
+    )
+
+
+# 用户在 query 里写"1000字"/"500 字"等长度要求时匹配出数字。
+# 故意限制 2-5 位数字，过滤掉无意义的"1 字"和"100000 字"——前者是误匹配，
+# 后者远超 max_tokens 上限，模型也写不到，避免 prompt 给出夸张承诺。
+_LENGTH_REQUEST_PATTERN = re.compile(r"(\d{2,5})\s*字")
+
+
+def detect_length_request(query: str) -> int | None:
+    """从 query 里提取目标字数（如"1000字"），返回 None 表示无明确要求。
+
+    返回值约束：
+    - 仅识别中文"X字"形式（覆盖项目主要场景）
+    - 仅取最后一个匹配（用户可能修正"500字、不、1000字"，最后一次为准）
+    - 100-99999 之间，超出范围视为无效
+    """
+    matches = _LENGTH_REQUEST_PATTERN.findall(query)
+    if not matches:
+        return None
+    target = int(matches[-1])
+    if not 100 <= target <= 99999:
+        return None
+    return target
+
+
+def length_target_clause(target: int | None) -> str:
+    """生成"字数要求"子句，拼到 system prompt 末尾。
+
+    设计要点（详见 docs/agent-design/03-output-format-and-length.md）：
+    - 把目标字数和 90% 下限都告诉模型，对齐 RLHF 训练偏向"低估字数"的天性
+    - 鼓励先列大纲再展开，提升达标率
+    - 子句放 system 末尾，利用 LLM 的 recency bias
+    """
+    if target is None:
+        return ""
+    return (
+        f"\n\n字数要求：用户明确要求 ~{target} 字。"
+        f"请按此规模充分展开，不要少于 {int(target * 0.9)} 字，也不要超出 {int(target * 1.3)} 字太多。"
+        f"建议先在脑中列 3-5 段大纲，再每段展开充分；不要敷衍收尾。"
     )
 
 
@@ -93,6 +134,8 @@ async def stream_final_answer(
     if llm is not None:
         # 格式子句按 intent 动态切换；放在 system 末尾以利用 LLM 的 recency bias。
         style_clause = format_style_clause(intent)
+        # 长度子句：用户明确写了"X字"才注入，否则保持原行为。
+        length_clause = length_target_clause(detect_length_request(query))
         prompt = ChatPromptTemplate.from_messages(
             [
                 (
@@ -108,7 +151,7 @@ async def stream_final_answer(
                     "4. 如果上下文是检索片段，请综合后给出结论，并在末尾自然提及来源文件名。\n"
                     "5. 如果上下文不足以回答，需明确说明无法确认的部分。\n"
                     "6. 闲聊或常识问题：上下文为空时，正常友好地回答即可。\n\n"
-                    f"{style_clause}",
+                    f"{style_clause}{length_clause}",
                 ),
                 (
                     "human",
