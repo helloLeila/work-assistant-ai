@@ -19,6 +19,7 @@ from app.nodes.hallucination_check_node import hallucination_check_node, route_a
 from app.nodes.intent_router_node import intent_router_node, route_by_intent
 from app.nodes.knowledge_rag_node import knowledge_rag_node
 from app.nodes.personal_info_node import personal_info_node
+from app.nodes.planner_node import planner_node
 from app.nodes.salary_query_node import salary_query_node
 from app.nodes.travel_booking_node import travel_booking_node
 from app.nodes.web_search_node import web_search_node
@@ -41,6 +42,9 @@ class GraphState(TypedDict, total=False):
     draft_answer: str
     structured_data: dict[str, Any]
     travel_info: dict[str, Any]
+    # 写作类长请求由 planner_node 产出的段落大纲，generate_node 会读这个字段决定是否分段展开。
+    # 字段为空字符串或缺失都视为'无大纲'，generate 走原逻辑。
+    outline: str
     final_answer: str
     sources: list[dict[str, Any]]
     retry_count: int
@@ -129,6 +133,12 @@ def get_office_assistant_graph():
         "travel_booking_node",
         _with_status(travel_booking_node, step="travel", label="处理差旅请求"),
     )
+    # planner_node 仅对 chitchat + 长字数请求实质规划，其余请求是 pass-through，
+    # 所以放心地把 chitchat 路径都串过它，不会增加无关请求的延迟。
+    builder.add_node(
+        "planner_node",
+        _with_status(planner_node, step="plan", label="规划写作大纲"),
+    )
     # generate_node 需要 runtime（拿 streamer 去流 token），单独走 takes_runtime=True。
     builder.add_node(
         "generate_node",
@@ -146,9 +156,12 @@ def get_office_assistant_graph():
             "knowledge_rag_node": "knowledge_rag_node",
             "auth_check_node": "auth_check_node",
             "travel_booking_node": "travel_booking_node",
-            "generate_node": "generate_node",
+            # chitchat / 写作类原本直通 generate_node，现在先过 planner_node 做长输出规划；
+            # 短查询/无字数要求时 planner 是 pass-through，几乎零开销。
+            "generate_node": "planner_node",
         },
     )
+    builder.add_edge("planner_node", "generate_node")
     # 第二层路由专门处理敏感数据的权限判断。
     builder.add_conditional_edges(
         "auth_check_node",
@@ -199,17 +212,19 @@ def build_graph_blueprint() -> GraphBlueprint:
             "salary_query_node",
             "personal_info_node",
             "travel_booking_node",
+            "planner_node",
             "generate_node",
             "hallucination_check_node",
         ],
         edges={
-            "intent_router_node": ["knowledge_rag_node", "auth_check_node", "travel_booking_node", "generate_node"],
+            "intent_router_node": ["knowledge_rag_node", "auth_check_node", "travel_booking_node", "planner_node"],
             "knowledge_rag_node": ["grader_node"],
             "grader_node": ["generate_node", "web_search_node"],
             "auth_check_node": ["salary_query_node", "personal_info_node", "generate_node"],
             "salary_query_node": ["generate_node"],
             "personal_info_node": ["generate_node"],
             "travel_booking_node": ["generate_node"],
+            "planner_node": ["generate_node"],
             "generate_node": ["hallucination_check_node"],
             "hallucination_check_node": ["generate_node", "__end__"],
         },
