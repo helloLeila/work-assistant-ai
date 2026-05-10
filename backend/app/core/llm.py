@@ -119,6 +119,60 @@ def get_chat_model(
         return None
 
 
+def get_utility_chat_model(
+    *,
+    temperature: float = 0,
+    tags: Sequence[str] | None = None,
+) -> BaseChatModel | None:
+    """轻量 utility 模型工厂——专给意图分类 / grading / 字段抽取 / 大纲规划用。
+
+    设计动机详见 docs/agent-design/02-routing-and-model-tiers.md：
+    - 这些链路是"高频 + 短输出 + 要确定性"的小调用，本不需要顶配推理模型；
+    - 主模型(Claude Coding Plan / Claude Sonnet)开 thinking 后单次 ~25s，
+      用在意图分类上等于让用户每次都先等一个"思考下你想干啥"的开销。
+    - 切到 utility tier(gpt-4o-mini / haiku 等)单次 ~1-2s，体感立刻顺。
+
+    与 get_chat_model() 的差异：
+    1. 永不开 thinking，永不流式(utility 链路都是 ainvoke 一次拿 JSON/dict)。
+    2. 默认 temperature=0(分类/抽取要稳定)。
+    3. 用 *_utility_model 配置;留空时回退到主模型——保留向后兼容。
+    """
+    settings = get_settings()
+    provider = settings.active_llm_provider
+    if not provider:
+        return None
+
+    tag_list = list(tags or [])
+
+    try:
+        if provider == "anthropic":
+            # Anthropic 协议侧若没单独配 utility 模型则回退到主模型;
+            # 至少不会因为切 tier 反而把已有部署搞崩。
+            model_name = settings.anthropic_utility_model.strip() or settings.anthropic_model
+            return ChatAnthropic(
+                **_build_anthropic_client_kwargs(),
+                model=model_name,
+                temperature=temperature,
+                streaming=False,
+                tags=tag_list,
+                # utility 链路输出短(分类 JSON / 大纲 < 200 字),给 1024 足够,
+                # 同时也避免主模型那套 8k max_tokens 拖慢 stop 判定。
+                max_tokens=1024,
+            )
+        # OpenAI / OpenAI 兼容
+        model_name = settings.openai_utility_model.strip() or settings.openai_model
+        return ChatOpenAI(
+            **_build_openai_client_kwargs(),
+            model=model_name,
+            temperature=temperature,
+            streaming=False,
+            tags=tag_list,
+        )
+    except Exception as exc:
+        logger.error("utility 模型初始化失败（provider=%s）：%s", provider, exc, exc_info=True)
+        return None
+
+
 def get_embeddings_model() -> OpenAIEmbeddings | None:
     """按配置创建 Embedding 模型。
 

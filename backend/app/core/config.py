@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_base_url: str = ""
     openai_model: str = "gpt-4o"
+    # 轻量 utility 模型：用于意图分类 / grading / 字段抽取 / 写作大纲规划等
+    # 需要"快+确定"的小链路。详见 docs/agent-design/02-routing-and-model-tiers.md。
+    # 留空则回退到 openai_model（但延迟会等同主模型，失去本设计目的）。
+    openai_utility_model: str = "gpt-4o-mini"
     # 如果当前供应商没有可用的 Embedding 接口，可以留空，系统会自动回退到本地词法检索。
     openai_embedding_model: str = "text-embedding-3-small"
 
@@ -58,6 +62,10 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_base_url: str = ""
     anthropic_model: str = "claude-3-5-sonnet-latest"
+    # 轻量 utility 模型（Anthropic 协议侧）。订阅类网关（MiniMax Token/Coding Plan）
+    # 通常只暴露主模型，留空时 get_utility_chat_model() 会回退到 anthropic_model。
+    # 部署到 Claude 官方时建议设为 "claude-3-5-haiku-latest"。
+    anthropic_utility_model: str = ""
     # 推理模型（Claude 3.7+ extended thinking / MiniMax M2.x）的思考预算 token 数。
     # 0 = 禁用，不让模型走 thinking 通道；>0 = 开启并允许模型最多消耗这么多 token 在内部推理上。
     # 仅对生成最终答案的链路生效，意图分类/抽取等需要确定性输出的小链路始终关闭。
