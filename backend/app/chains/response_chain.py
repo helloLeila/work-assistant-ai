@@ -9,6 +9,38 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.core.llm import get_chat_model
 
+THINKING_INTENTS = {"knowledge", "salary", "personal", "travel"}
+# 复用 THINKING_INTENTS 作为"结构化业务回答"的判定条件——这些 intent 都涉及
+# 字段、表格、检索片段，markdown 列表/加粗能突出关键信息；其他 intent（chitchat/写作类）
+# 是自由文本场景，强制散文反而更自然，避免模型乱用 ## 标题或列表。
+STRUCTURED_FORMAT_INTENTS = THINKING_INTENTS
+
+
+def should_enable_extended_thinking(intent: str) -> bool:
+    """仅业务推理链路默认开启 extended thinking，通用写作/闲聊走快速生成。"""
+    return intent in THINKING_INTENTS
+
+
+def format_style_clause(intent: str) -> str:
+    """按 intent 选择输出格式偏好，作为 system prompt 的格式子句。
+
+    设计动机详见 docs/agent-design/03-output-format-and-length.md。
+    - 业务类（knowledge/salary/personal/travel）：允许 markdown 列表/加粗，便于突出字段
+    - 写作/闲聊类：强制纯散文，避免模型乱出 ## 标题或 - 列表导致前端流式期间看到原始符号
+
+    放在 system prompt 的末尾——LLM 对 recent context 的注意力比 instruction 开头更高。
+    """
+    if intent in STRUCTURED_FORMAT_INTENTS:
+        return (
+            "格式偏好：可以使用 markdown 列表或加粗突出字段名/数值；"
+            "回答业务数据时优先列点，关键字段（订单号/金额/日期）要醒目。"
+        )
+    return (
+        "格式偏好：用自然流畅的中文段落，**不要使用** markdown 标题（##）、"
+        "无序列表（- ）、加粗（**）等任何 markdown 语法，直接写散文。"
+        "段落之间用空行分隔即可。"
+    )
+
 
 async def _stream_chunk_to_streamer(chunk_content: Any, streamer) -> str:
     """把 LangChain AIMessageChunk 的 content 推到 streamer，并返回新增的可见文本。
@@ -50,17 +82,17 @@ async def stream_final_answer(
     streamer,
 ) -> str:
     """生成最终回答，并按 token 流式输出。"""
-    # 这里是用户面对的最终答案生成，开 extended thinking 让推理模型把"思考过程"流到 UI，
-    # 配合前端折叠块即可展示豆包/Claude 风格的"思考中…"实时内容；
-    # 关掉只需要把 ANTHROPIC_THINKING_BUDGET 设为 0。
+    # 业务问答保留 extended thinking；普通写作/闲聊走快速生成，避免首 token 前长时间等待。
     llm = get_chat_model(
         temperature=0.2,
         streaming=True,
         tags=["final_response"],
-        enable_thinking=True,
+        enable_thinking=should_enable_extended_thinking(intent),
     )
 
     if llm is not None:
+        # 格式子句按 intent 动态切换；放在 system 末尾以利用 LLM 的 recency bias。
+        style_clause = format_style_clause(intent)
         prompt = ChatPromptTemplate.from_messages(
             [
                 (
@@ -70,12 +102,13 @@ async def stream_final_answer(
                     "1. **绝对不要直接复述 JSON 或 dict 格式数据**，要把里面的字段翻译成人话。"
                     "  例如 `{{\"from_city\": \"上海\", \"date\": \"2026-05-19\"}}` 应转写为"
                     "  「已为你提交一笔出行申请：5 月 19 日从上海出发」。\n"
-                    "2. 答案应像真人客服一样总结要点，必要时使用 markdown 列表，不要在回答中出现"
+                    "2. 答案应像真人客服一样总结要点，不要在回答中出现"
                     "  花括号、引号、`null`、`true/false` 等编程术语。\n"
                     "3. 如果上下文里有订单号、金额、日期等关键字段，要点出来。\n"
                     "4. 如果上下文是检索片段，请综合后给出结论，并在末尾自然提及来源文件名。\n"
                     "5. 如果上下文不足以回答，需明确说明无法确认的部分。\n"
-                    "6. 闲聊或常识问题：上下文为空时，正常友好地回答即可。",
+                    "6. 闲聊或常识问题：上下文为空时，正常友好地回答即可。\n\n"
+                    f"{style_clause}",
                 ),
                 (
                     "human",
