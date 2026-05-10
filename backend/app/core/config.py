@@ -62,8 +62,15 @@ class Settings(BaseSettings):
     # 0 = 禁用，不让模型走 thinking 通道；>0 = 开启并允许模型最多消耗这么多 token 在内部推理上。
     # 仅对生成最终答案的链路生效，意图分类/抽取等需要确定性输出的小链路始终关闭。
     anthropic_thinking_budget: int = 4000
-    # 开启 thinking 时单次响应的最大 token 上限，必须 > thinking_budget，给正式答案留空间。
+    # 开启 thinking 时单次响应的最大 token 上限（thinking + 答案 总额度）。
+    # 必须严格 > anthropic_thinking_budget，给正式答案留空间。
     anthropic_max_tokens: int = 8192
+    # 关闭 thinking 时纯答案的输出预算。中文 ~1.5 字/token，4096 tokens ≈ 2700 字，
+    # 留够长文写作场景。如果用户经常要求 5000 字以上长文，把这个值开到 8192。
+    # 历史背景：langchain-anthropic 默认 max_tokens=1024（≈ 700 中文字），
+    # 经常导致"用户要 1000 字、模型只产 500-700 字"的截断。详见
+    # docs/agent-design/03-output-format-and-length.md。
+    anthropic_output_tokens: int = 4096
 
     langsmith_tracing_v2: bool = False
     langsmith_api_key: str = ""

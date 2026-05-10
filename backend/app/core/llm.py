@@ -84,6 +84,9 @@ def get_chat_model(
                 "temperature": temperature,
                 "streaming": streaming,
                 "tags": tag_list,
+                # 永远显式设 max_tokens，避免 langchain-anthropic 默认 1024 把长文截断。
+                # 默认走"非 thinking 输出预算"基线；thinking 模式下面会再覆盖一次。
+                "max_tokens": settings.anthropic_output_tokens,
             }
             # 仅在调用方显式打开、且全局 budget>0 时才挂 thinking 参数；
             # 这样关掉 budget（=0）也能等同于完全禁用 thinking，对供应商友好。
@@ -95,9 +98,10 @@ def get_chat_model(
                 # Anthropic 协议要求开 thinking 时 temperature=1，否则会 400。
                 anthropic_kwargs["temperature"] = 1.0
                 # max_tokens 必须严格大于 thinking_budget，预留答案 token 空间。
+                # 取 (配置, budget+2048) 中较大者，确保答案至少有 2k token 余地。
                 anthropic_kwargs["max_tokens"] = max(
                     settings.anthropic_max_tokens,
-                    settings.anthropic_thinking_budget + 1024,
+                    settings.anthropic_thinking_budget + 2048,
                 )
             return ChatAnthropic(**anthropic_kwargs)
         # 默认走 OpenAI 协议
