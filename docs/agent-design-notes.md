@@ -15,6 +15,7 @@
 1. [Extended Thinking 与节点级状态推送](./agent-design/01-thinking-and-status.md)
 2. [推理模型 vs 工具模型的分工](./agent-design/02-routing-and-model-tiers.md)
 3. [输出格式、长度预算与流式渲染](./agent-design/03-output-format-and-length.md)
+4. [Planner-then-Writer:长输出的两段式生成](./agent-design/04-planner-then-writer.md)
 
 ---
 
@@ -32,7 +33,8 @@
     ├─ salary    ─▶ auth_check_node    ─▶ salary_query_node ─▶ generate_node
     ├─ personal  ─▶ auth_check_node    ─▶ personal_info_node ─▶ generate_node
     ├─ travel    ─▶ travel_booking_node ─▶ generate_node
-    └─ chitchat  ─▶ generate_node(直通)
+    └─ chitchat  ─▶ planner_node ─▶ generate_node
+                     (长字数请求规划大纲,其余 pass-through)
                                               │
                                               ▼
                                     ┌─────────────────────┐
