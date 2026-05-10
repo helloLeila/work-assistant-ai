@@ -57,10 +57,37 @@ class GraphRuntimeContext:
     streamer: Any
 
 
-async def _wrap_generate(state: GraphState, runtime: Runtime[GraphRuntimeContext]) -> Any:
-    # generate_node 是异步节点。这里单独包一层，
-    # 是为了让编译后的图在运行时稳定处理 await 逻辑。
-    return await generate_node(state, runtime)
+def _with_status(
+    node_fn,
+    *,
+    step: str,
+    label: str,
+    takes_runtime: bool = False,
+):
+    """给节点加一层状态推送外壳。
+
+    每个节点入口 push status=running、出口 push status=done，前端据此实时显示
+    "理解问题中…""检索知识库中…""组织答案中…"等步骤，不用干等 16 秒秒表。
+
+    takes_runtime：传给内部节点函数时是否需要 runtime 参数（目前只有 generate_node 需要，
+    因为它要用 runtime.context.streamer 去流 token）。
+    """
+
+    async def wrapped(state: GraphState, runtime: Runtime[GraphRuntimeContext]):
+        streamer = getattr(runtime.context, "streamer", None)
+        if streamer is not None:
+            await streamer.push_status(step=step, label=label, state="running")
+        try:
+            if takes_runtime:
+                return await node_fn(state, runtime)
+            return await node_fn(state)
+        finally:
+            # 无论节点抛异常与否都发 done，避免前端 spinner 卡死。
+            # 异常本身会由上层 run_streaming_chat 的 try/except 捕获并 push_error。
+            if streamer is not None:
+                await streamer.push_status(step=step, label=label, state="done")
+
+    return wrapped
 
 
 @lru_cache
@@ -69,15 +96,45 @@ def get_office_assistant_graph():
     builder = StateGraph(GraphState, context_schema=GraphRuntimeContext)
     # 先注册节点，再声明边。
     # 这样读代码时能先看到“有哪些步骤”，再看“步骤怎么流转”。
-    builder.add_node("intent_router_node", intent_router_node)
-    builder.add_node("knowledge_rag_node", knowledge_rag_node)
-    builder.add_node("grader_node", grader_node)
-    builder.add_node("web_search_node", web_search_node)
-    builder.add_node("auth_check_node", auth_check_node)
-    builder.add_node("salary_query_node", salary_query_node)
-    builder.add_node("personal_info_node", personal_info_node)
-    builder.add_node("travel_booking_node", travel_booking_node)
-    builder.add_node("generate_node", _wrap_generate)
+    # 每个节点都经 _with_status 包一层，把"现在在做什么"实时同步给前端气泡。
+    builder.add_node(
+        "intent_router_node",
+        _with_status(intent_router_node, step="intent", label="理解你的问题"),
+    )
+    builder.add_node(
+        "knowledge_rag_node",
+        _with_status(knowledge_rag_node, step="retrieve", label="检索知识库"),
+    )
+    builder.add_node(
+        "grader_node",
+        _with_status(grader_node, step="grade", label="筛选相关内容"),
+    )
+    builder.add_node(
+        "web_search_node",
+        _with_status(web_search_node, step="web_search", label="联网补充检索"),
+    )
+    builder.add_node(
+        "auth_check_node",
+        _with_status(auth_check_node, step="auth", label="校验访问权限"),
+    )
+    builder.add_node(
+        "salary_query_node",
+        _with_status(salary_query_node, step="salary", label="查询薪酬信息"),
+    )
+    builder.add_node(
+        "personal_info_node",
+        _with_status(personal_info_node, step="profile", label="查询个人信息"),
+    )
+    builder.add_node(
+        "travel_booking_node",
+        _with_status(travel_booking_node, step="travel", label="处理差旅请求"),
+    )
+    # generate_node 需要 runtime（拿 streamer 去流 token），单独走 takes_runtime=True。
+    builder.add_node(
+        "generate_node",
+        _with_status(generate_node, step="generate", label="组织答案", takes_runtime=True),
+    )
+    # hallucination_check_node 通常毫秒级，不 push status 避免多余噪声。
     builder.add_node("hallucination_check_node", hallucination_check_node)
 
     builder.add_edge(START, "intent_router_node")

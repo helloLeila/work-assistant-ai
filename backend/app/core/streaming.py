@@ -29,6 +29,25 @@ class SSEStreamer:
         """推送一段思考过程文本（与 token 同级，但前端单独渲染折叠块）。"""
         await self._queue.put(StreamEvent(type="thinking", payload={"content": chunk}))
 
+    async def push_status(self, *, step: str, label: str, state: str) -> None:
+        """推送管道级状态事件。
+
+        用于让前端在"模型还没吐 token"的几秒里，知道后端在干什么——
+        例如 RAG 场景下 intent_router / knowledge_rag / grader 都是非流式 LLM 调用，
+        以前这段时间前端只能看到死秒表，现在可以显示"检索知识库中…""筛选相关内容…"。
+
+        参数设计：
+        - step：稳定的机器 id（intent / retrieve / grade / generate …），前端用它 upsert 同一条。
+        - label：给用户看的中文描述，可以随节点变化而微调。
+        - state：running / done，前端据此切换 spinner/对勾图标。
+        """
+        await self._queue.put(
+            StreamEvent(
+                type="status",
+                payload={"step": step, "label": label, "state": state},
+            )
+        )
+
     async def push_sources(self, files: list[dict[str, Any]]) -> None:
         await self._queue.put(StreamEvent(type="source", payload={"files": files}))
 
