@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from app.chains.response_chain import (
+    CONTINUATION_MAX_ITERATIONS,
+    CONTINUATION_THRESHOLD,
     detect_length_request,
     format_style_clause,
     length_target_clause,
+    should_continue_writing,
     should_enable_extended_thinking,
 )
 
@@ -83,3 +86,41 @@ def test_length_target_clause_includes_target_and_lower_bound() -> None:
     assert "900" in clause
     # 鼓励大纲展开
     assert "大纲" in clause
+
+
+# ===== Continuation 续写触发条件 =====
+
+
+def test_should_continue_writing_returns_false_when_no_target() -> None:
+    """用户没说字数时永远不续写，保持原行为。"""
+    assert should_continue_writing(current_chars=300, target=None) is False
+    # 即使当前是 0 字，没目标也不该续写——避免对闲聊触发奇怪的'继续展开'
+    assert should_continue_writing(current_chars=0, target=None) is False
+
+
+def test_should_continue_writing_returns_false_when_meeting_threshold() -> None:
+    """达到 target * threshold 即视为达标，不再续写。"""
+    target = 1000
+    threshold_chars = int(target * CONTINUATION_THRESHOLD)  # 850
+    # 刚好达标
+    assert should_continue_writing(current_chars=threshold_chars, target=target) is False
+    # 超出更不用说
+    assert should_continue_writing(current_chars=target + 200, target=target) is False
+
+
+def test_should_continue_writing_returns_true_when_below_threshold() -> None:
+    """显著低于目标时应触发续写。"""
+    target = 1000
+    # 50% < 85% 阈值
+    assert should_continue_writing(current_chars=500, target=target) is True
+    # 84% 仍然低于 85% 阈值
+    assert should_continue_writing(current_chars=int(target * 0.84), target=target) is True
+
+
+def test_continuation_constants_are_sane() -> None:
+    """阈值常量保持合理范围，避免后续误改导致体验劣化。"""
+    # 0.6 太松会让 1000 字目标产 600 字也躺平不补
+    # 0.95 太严会让模型反复无意义续写
+    assert 0.7 <= CONTINUATION_THRESHOLD <= 0.9
+    # 1 次续写不够应对极端低估，3 次以上对延迟影响过大
+    assert CONTINUATION_MAX_ITERATIONS in (2, 3)
