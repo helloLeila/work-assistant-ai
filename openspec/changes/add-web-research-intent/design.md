@@ -2,7 +2,7 @@
 
 `backend/app/nodes/web_search_node.py` 目前是 stub:无论用户问什么,都返回"知识库没有相关材料"的固定文本。`intent_chain.KEYWORD_RULES` 里所有写作类(生成/写/总结/面试)都归到 `chitchat`,不区分是否需要外部素材,模型只能凭训练数据回答。
 
-我们已经注册 Bocha Web Search(`api.bochaai.com`):
+我们已经注册 Bocha Web Search(`api.bocha.cn`):
 
 - 协议:简单 REST POST,返回 JSON
 - 价格:免费 1000 次/月,超出 ¥0.03/次(参考价)
@@ -107,7 +107,7 @@ status: generate done
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|
 | `BOCHA_API_KEY` | `""` | 留空 = `web_research_write` 路径直接 fallback 到 `direct_write` |
-| `BOCHA_BASE_URL` | `https://api.bochaai.com/v1` | 可被代理 |
+| `BOCHA_BASE_URL` | `https://api.bocha.cn/v1` | 可被代理 |
 | `BOCHA_MAX_RESULTS` | `5` | 单次搜索返回条数,1-10 |
 | `BOCHA_TIMEOUT_SECONDS` | `1.5` | 单次调用超时,与 utility 分类的 1.5s 阈值对齐 |
 | `BOCHA_FRESHNESS` | `oneMonth` | Bocha 时效过滤:`oneDay`/`oneWeek`/`oneMonth`/`oneYear`/`noLimit` |

@@ -2,7 +2,7 @@
 
 当前 `web_search_node` 只是 stub,问"今天天气""今天是几号""2026 AI agent 趋势"这类时效性问题时,系统只能基于训练截止前的数据回答,容易胡说或返回过期内容。同时意图分类把"生成 200 字 agent 总结"这类需要联网素材的写作和"帮我写一段感谢信"这类不需要联网的写作混在同一个 chitchat 桶里,模型无法选择正确的执行路径。
 
-我们已经注册了 Bocha AI(`api.bochaai.com`)的 Web Search API(国内可直连,免 VPN),具备落地条件。
+我们已经注册了 Bocha AI(`api.bocha.cn`)的 Web Search API(国内可直连,免 VPN),具备落地条件。
 
 ## What Changes
 

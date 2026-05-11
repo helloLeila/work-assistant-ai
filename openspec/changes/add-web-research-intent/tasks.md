@@ -1,6 +1,6 @@
 ## 1. 配置层
 
-- [ ] 1.1 在 `backend/app/core/config.py` 新增四个 settings 字段:`bocha_api_key: str = ""`、`bocha_base_url: str = "https://api.bochaai.com/v1"`、`bocha_max_results: int = 5`、`bocha_timeout_seconds: float = 1.5`、`bocha_freshness: str = "oneMonth"`,均带 docstring 注释来源
+- [ ] 1.1 在 `backend/app/core/config.py` 新增四个 settings 字段:`bocha_api_key: str = ""`、`bocha_base_url: str = "https://api.bocha.cn/v1"`、`bocha_max_results: int = 5`、`bocha_timeout_seconds: float = 1.5`、`bocha_freshness: str = "oneMonth"`,均带 docstring 注释来源
 - [ ] 1.2 在 `.env.example` 追加上述变量示例(`BOCHA_API_KEY=` 留空提示用户自行填写)
 - [ ] 1.3 在 `Settings` 上新增 `bocha_enabled` property,判断 `bocha_api_key.strip() != ""`
 
