@@ -213,6 +213,7 @@ async def stream_final_answer(
         # 我们要拿到原始 chunk 自己分流（thinking → push_thinking，text → push_token）。
         chain = prompt | llm
         visible_chunks: list[str] = []
+        await streamer.push_progress(step="generate", detail="正在等待模型首段输出")
         async for chunk in chain.astream(
             {
                 "query": query,
@@ -223,6 +224,8 @@ async def stream_final_answer(
         ):
             visible = await _stream_chunk_to_streamer(chunk.content, streamer)
             if visible:
+                if not visible_chunks:
+                    await streamer.push_progress(step="generate", detail="已开始输出正文")
                 visible_chunks.append(visible)
 
         # ===== Continuation 续写循环 =====

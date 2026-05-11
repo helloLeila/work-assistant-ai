@@ -61,6 +61,21 @@ class GraphRuntimeContext:
     streamer: Any
 
 
+def _status_label_for_state(default_label: str, step: str, state: GraphState) -> str:
+    """根据当前 intent 调整步骤文案，避免结构化业务都显示“生成正文”。"""
+    if step != "generate":
+        return default_label
+    intent = state.get("intent")
+    labels = {
+        "salary": "整理薪酬结果",
+        "personal": "整理个人信息",
+        "travel": "确认商旅订单",
+        "knowledge": "综合制度内容",
+        "chitchat": "撰写正文",
+    }
+    return labels.get(intent, default_label)
+
+
 def _with_status(
     node_fn,
     *,
@@ -79,17 +94,27 @@ def _with_status(
 
     async def wrapped(state: GraphState, runtime: Runtime[GraphRuntimeContext]):
         streamer = getattr(runtime.context, "streamer", None)
+        status_label = _status_label_for_state(label, step, state)
         if streamer is not None:
-            await streamer.push_status(step=step, label=label, state="running")
+            await streamer.push_status(step=step, label=status_label, state="running")
         try:
             if takes_runtime:
-                return await node_fn(state, runtime)
-            return await node_fn(state)
+                result = await node_fn(state, runtime)
+            else:
+                result = await node_fn(state)
+            if streamer is not None and step == "intent" and isinstance(result, dict):
+                reason = str(result.get("routing_reason") or "")
+                intent = str(result.get("intent") or "")
+                if reason:
+                    await streamer.push_progress(step=step, detail=reason)
+                if intent == "chitchat":
+                    await streamer.push_trace(step="route", label="规划回答方式", detail="按你的主题和字数要求组织回答")
+            return result
         finally:
             # 无论节点抛异常与否都发 done，避免前端 spinner 卡死。
             # 异常本身会由上层 run_streaming_chat 的 try/except 捕获并 push_error。
             if streamer is not None:
-                await streamer.push_status(step=step, label=label, state="done")
+                await streamer.push_status(step=step, label=status_label, state="done")
 
     return wrapped
 
@@ -103,7 +128,7 @@ def get_office_assistant_graph():
     # 每个节点都经 _with_status 包一层，把"现在在做什么"实时同步给前端气泡。
     builder.add_node(
         "intent_router_node",
-        _with_status(intent_router_node, step="intent", label="理解你的问题"),
+        _with_status(intent_router_node, step="intent", label="理解需求"),
     )
     builder.add_node(
         "knowledge_rag_node",
@@ -137,12 +162,12 @@ def get_office_assistant_graph():
     # 所以放心地把 chitchat 路径都串过它，不会增加无关请求的延迟。
     builder.add_node(
         "planner_node",
-        _with_status(planner_node, step="plan", label="规划写作大纲", takes_runtime=True),
+        _with_status(planner_node, step="plan", label="规划回答结构", takes_runtime=True),
     )
     # generate_node 需要 runtime（拿 streamer 去流 token），单独走 takes_runtime=True。
     builder.add_node(
         "generate_node",
-        _with_status(generate_node, step="generate", label="组织答案", takes_runtime=True),
+        _with_status(generate_node, step="generate", label="生成正文", takes_runtime=True),
     )
     # hallucination_check_node 通常毫秒级，不 push status 避免多余噪声。
     builder.add_node("hallucination_check_node", hallucination_check_node)

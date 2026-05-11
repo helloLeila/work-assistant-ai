@@ -48,6 +48,31 @@ class SSEStreamer:
             )
         )
 
+    async def push_progress(self, *, step: str, detail: str) -> None:
+        """推送某个长步骤内部的细粒度进展。"""
+        await self._queue.put(
+            StreamEvent(
+                type="progress",
+                payload={"step": step, "detail": detail},
+            )
+        )
+
+    async def push_trace(
+        self,
+        *,
+        step: str,
+        label: str,
+        detail: str = "",
+        state: str = "done",
+    ) -> None:
+        """推送可回放的处理轨迹，用于前端展开查看。"""
+        await self._queue.put(
+            StreamEvent(
+                type="trace",
+                payload={"step": step, "label": label, "detail": detail, "state": state},
+            )
+        )
+
     async def push_sources(self, files: list[dict[str, Any]]) -> None:
         await self._queue.put(StreamEvent(type="source", payload={"files": files}))
 

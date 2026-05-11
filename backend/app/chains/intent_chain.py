@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -54,6 +56,7 @@ KEYWORD_RULES: tuple[tuple[str, list[str], list[str]], ...] = (
 # 默认归为 chitchat。对"在吗""嗯""ok""hello?"这类没穷举到的零碎闲聊也能秒过。
 # 阈值放宽到 15 字是经验值——业务请求基本都 >15 字（"帮我看看本月薪酬""差旅最多能报多少"）。
 SHORT_QUERY_FALLBACK_CHARS = 15
+UTILITY_CLASSIFIER_TIMEOUT_SECONDS = 1.5
 
 
 def _classify_by_local_keywords(query: str) -> IntentClassification | None:
@@ -129,13 +132,24 @@ async def classify_intent(query: str) -> IntentClassification:
             ]
         )
         chain = prompt | llm | parser
-        result = await chain.ainvoke(
-            {
-                "few_shots": FEW_SHOTS,
-                "format_instructions": parser.get_format_instructions(),
-                "query": query,
-            }
-        )
+        try:
+            result = await asyncio.wait_for(
+                chain.ainvoke(
+                    {
+                        "few_shots": FEW_SHOTS,
+                        "format_instructions": parser.get_format_instructions(),
+                        "query": query,
+                    }
+                ),
+                timeout=UTILITY_CLASSIFIER_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            result = IntentClassification(
+                intent="chitchat",
+                confidence=0.75,
+                candidate_intents=["chitchat", "knowledge"],
+                reason=f"意图分类超过 {UTILITY_CLASSIFIER_TIMEOUT_SECONDS:.1f}s，先按通用回答处理",
+            )
     else:
         lowered = query.lower()
         if any(keyword in query for keyword in ["制度", "报销", "手册", "知识库", "规定"]) or "policy" in lowered:

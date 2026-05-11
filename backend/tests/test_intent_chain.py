@@ -87,3 +87,33 @@ def test_long_business_query_does_not_hit_short_fallback(monkeypatch) -> None:
         assert exc is sentinel
     else:
         raise AssertionError("long ambiguous query should have reached the LLM tier")
+
+
+def test_utility_classifier_timeout_falls_back_to_chitchat(monkeypatch) -> None:
+    """utility 分类超过预算时应兜底，不让用户卡在意图识别。"""
+
+    class FakePrompt:
+        def __or__(self, other):
+            return self
+
+        async def ainvoke(self, payload):
+            raise AssertionError("wait_for should time out before ainvoke resolves")
+
+    class FakePromptTemplate:
+        @staticmethod
+        def from_messages(messages):
+            return FakePrompt()
+
+    async def timeout_wait_for(awaitable, timeout):
+        # 关闭协程，避免 pytest 报 unawaited coroutine warning。
+        awaitable.close()
+        raise TimeoutError
+
+    monkeypatch.setattr(intent_chain, "get_utility_chat_model", lambda *args, **kwargs: object())
+    monkeypatch.setattr(intent_chain, "ChatPromptTemplate", FakePromptTemplate)
+    monkeypatch.setattr(intent_chain.asyncio, "wait_for", timeout_wait_for)
+
+    result = asyncio.run(intent_chain.classify_intent("我想问一下关于上个月那个事情的进展现在到哪一步了"))
+
+    assert result.intent == "chitchat"
+    assert "超过" in result.reason
