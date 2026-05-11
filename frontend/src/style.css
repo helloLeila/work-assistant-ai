@@ -125,8 +125,14 @@ input {
   background: rgba(179, 0, 0, 0.5);
 }
 
-.chat-scroll-area.hide-thinking .think-block {
+.chat-scroll-area.hide-thinking .think-block,
+.chat-scroll-area.hide-thinking .thinking__steps,
+.chat-scroll-area.hide-thinking .thinking__body {
   display: none;
+}
+
+.chat-scroll-area.hide-thinking .thinking {
+  margin-bottom: 8px;
 }
 
 .think-block {

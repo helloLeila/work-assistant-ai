@@ -19,6 +19,7 @@ import { openChatStream } from "../composables/useChatStream";
 import { requestJson } from "../lib/api";
 import { sessionState } from "../stores/session";
 import type {
+  ChatStep,
   ChatMessage,
   HistorySession,
   QuickAction,
@@ -61,15 +62,27 @@ const streaming = ref(false);
 const errorMessage = ref("");
 const scrollAreaRef = ref<HTMLDivElement | null>(null);
 let streamHandle: EventSource | null = null;
+let scrollTimer: number | null = null;
+
+const HEARTBEAT_DETAILS = [
+  "正在整理上下文",
+  "正在组织回答结构",
+  "正在等待首段输出",
+  "正在继续输出内容",
+];
 
 function scrollChatToBottom(): void {
-  // nextTick 等 DOM 更新完再滚，否则取到的 scrollHeight 是更新前的旧值。
-  void nextTick(() => {
-    const el = scrollAreaRef.value;
-    if (el) {
-      el.scrollTop = el.scrollHeight;
-    }
-  });
+  if (scrollTimer !== null) return;
+  scrollTimer = window.setTimeout(() => {
+    scrollTimer = null;
+    // nextTick 等 DOM 更新完再滚，否则取到的 scrollHeight 是更新前的旧值。
+    void nextTick(() => {
+      const el = scrollAreaRef.value;
+      if (el) {
+        el.scrollTop = el.scrollHeight;
+      }
+    });
+  }, 80);
 }
 
 // 任意一条消息内容变化（包括 token 流式追加）都把容器滚到最下面。
@@ -168,22 +181,38 @@ function appendAssistantMessage(): ChatMessage {
     id: `assistant-${crypto.randomUUID()}`,
     role: "assistant",
     content: "",
+    renderedContent: "",
     createdAt: nowString(),
     sources: [],
     thinking: "",
+    thinkingPreview: "",
+    thinkingFull: "",
+    thinkingStats: {
+      chars: 0,
+      chunks: 0,
+      lastUpdatedAt: Date.now(),
+    },
     // 一开始就标记 isThinking=true，配合 thinkingStartAt 计时。
     // 等收到第一个真正的 token 时再把 isThinking 切成 false 并落定 thinkingEndAt。
     isThinking: true,
     thinkingStartAt: Date.now(),
-    // 豆包行为：思考阶段默认展开，便于实时围观；
-    // 当第一段正式 token 抵达时（onToken 里），自动收起。
-    thinkingExpanded: true,
+    // Claude Code 风格：过程默认以状态轨迹呈现，不自动展开长 thinking 文本。
+    thinkingExpanded: false,
     // 标记 SSE 流进行中，用于在气泡尾部显示闪烁光标，让用户能看到"还在生成"。
     isStreaming: true,
     // LangGraph 节点级进度。后端每进入/离开一个节点 push 一条，
     // 前端在思考块里渲染成"⟳ 检索知识库 / ✓ 已筛选相关内容"等步骤列表，
     // 填补"模型还没吐 token"那段冷场（典型 RAG 场景 8-15s）。
-    steps: [],
+    steps: [
+      {
+        id: "intent",
+        label: "理解需求",
+        state: "running",
+        detail: "正在读取你的问题",
+        details: ["正在读取你的问题"],
+        startedAt: Date.now(),
+      },
+    ],
   };
   messages.value.push(message);
   // push 后必须从数组里再取出来，拿到的才是 Vue 包过的 reactive proxy；
@@ -212,86 +241,222 @@ async function sendMessage(input?: unknown): Promise<void> {
 
   const assistantMessage = appendAssistantMessage();
 
-  // === rAF 节流缓冲区 ===
-  // 为什么要这个：上游 SSE 可能一帧内抵达多个 token，每个都直接改 reactive
-  // 会触发多次重渲染 + 全文 markdown 重解析。累加到 pending，每帧 flush 一次。
+  // === Claude Code 风格流式缓冲 ===
+  // 上游 token 可能突发抵达；这里把"收到"和"显示"拆开，让正文按稳定节奏吐出。
+  // thinking 原文保存在非响应式 buffer，只低频刷新尾部摘录，避免长文本持续重绘。
   let pendingContent = "";
-  let pendingThinking = "";
-  let flushScheduled = false;
+  let contentTimer: number | null = null;
+  let streamDone = false;
+  let streamFinalized = false;
+  let thinkingBuffer = "";
+  let thinkingChunks = 0;
+  let thinkingPreviewTimer: number | null = null;
+  let lastStreamEventAt = Date.now();
+  let heartbeatIndex = 0;
+  const heartbeatTimer = window.setInterval(() => {
+    if (!assistantMessage.isStreaming) return;
+    if (Date.now() - lastStreamEventAt < 1800) return;
+    const runningStep = [...(assistantMessage.steps ?? [])]
+      .reverse()
+      .find((step) => step.state === "running");
+    const fallbackStep = runningStep ?? {
+      id: "working",
+      label: "正在处理",
+      state: "running" as const,
+      startedAt: Date.now(),
+    };
+    const detail = HEARTBEAT_DETAILS[heartbeatIndex % HEARTBEAT_DETAILS.length];
+    heartbeatIndex += 1;
+    upsertStep({
+      id: fallbackStep.id,
+      label: fallbackStep.label,
+      state: "running",
+      detail,
+      synthetic: true,
+    });
+  }, 900);
 
-  function flushPending(): void {
-    if (pendingContent) {
-      // 首个正式 token 落地时处理思考阶段结束，与原逻辑一致。
-      if (assistantMessage.isThinking) {
-        assistantMessage.isThinking = false;
-        assistantMessage.thinkingEndAt = Date.now();
-        assistantMessage.thinkingExpanded = false;
-      }
-      assistantMessage.content += pendingContent;
-      pendingContent = "";
-    }
-    if (pendingThinking) {
-      assistantMessage.thinking = (assistantMessage.thinking ?? "") + pendingThinking;
-      pendingThinking = "";
-    }
-    flushScheduled = false;
+  function noteStreamEvent(): void {
+    lastStreamEventAt = Date.now();
   }
 
-  function scheduleFlush(): void {
-    if (flushScheduled) return;
-    flushScheduled = true;
-    requestAnimationFrame(flushPending);
+  function upsertStep(
+    patch: Pick<ChatStep, "id" | "label" | "state"> &
+      Partial<Pick<ChatStep, "detail" | "synthetic">>,
+  ): void {
+    const steps = assistantMessage.steps ?? [];
+    const existing = steps.find((item) => item.id === patch.id);
+    const now = Date.now();
+    if (existing) {
+      existing.label = patch.label;
+      existing.state = patch.state;
+      if (patch.detail) {
+        existing.detail = patch.detail;
+        if (!patch.synthetic) {
+          existing.details = [...(existing.details ?? []), patch.detail].slice(-6);
+        }
+      } else if (patch.state === "done" && existing.synthetic) {
+        existing.detail = undefined;
+      }
+      existing.synthetic = patch.synthetic;
+      if (patch.state === "done" && !existing.endedAt) existing.endedAt = now;
+      if (patch.state === "running") existing.endedAt = undefined;
+    } else {
+      steps.push({
+        id: patch.id,
+        label: patch.label,
+        state: patch.state,
+        detail: patch.detail,
+        details: patch.detail && !patch.synthetic ? [patch.detail] : [],
+        synthetic: patch.synthetic,
+        startedAt: now,
+        endedAt: patch.state === "done" ? now : undefined,
+      });
+    }
+    assistantMessage.steps = steps;
+  }
+
+  function markFirstVisibleToken(): void {
+    if (assistantMessage.isThinking) {
+      assistantMessage.isThinking = false;
+      assistantMessage.thinkingEndAt = Date.now();
+      assistantMessage.thinkingExpanded = false;
+    }
+  }
+
+  function takeVisibleChunk(): string {
+    const size = pendingContent.length > 800 ? 96 : pendingContent.length > 240 ? 56 : 28;
+    const chunk = pendingContent.slice(0, size);
+    pendingContent = pendingContent.slice(chunk.length);
+    return chunk;
+  }
+
+  async function finalizeStream(): Promise<void> {
+    if (streamFinalized) return;
+    streamFinalized = true;
+    window.clearInterval(heartbeatTimer);
+    if (thinkingPreviewTimer !== null) {
+      window.clearTimeout(thinkingPreviewTimer);
+      thinkingPreviewTimer = null;
+    }
+    if (thinkingBuffer) {
+      assistantMessage.thinkingPreview = thinkingBuffer.slice(-900);
+      assistantMessage.thinkingFull = thinkingBuffer;
+      assistantMessage.thinking = thinkingBuffer;
+      assistantMessage.thinkingStats = {
+        chars: thinkingBuffer.length,
+        chunks: thinkingChunks,
+        lastUpdatedAt: Date.now(),
+      };
+    }
+    // 兜底：极端情况下整轮没有正式 token（例如纯 thinking 后流就结束了），
+    // 也要把 isThinking 收尾，避免气泡一直转圈。
+    if (assistantMessage.isThinking) {
+      assistantMessage.isThinking = false;
+      assistantMessage.thinkingEndAt = Date.now();
+    }
+    assistantMessage.isStreaming = false;
+    streaming.value = false;
+    await loadHistory();
+  }
+
+  function pumpContent(): void {
+    if (pendingContent) {
+      markFirstVisibleToken();
+      assistantMessage.content += takeVisibleChunk();
+    }
+    if (pendingContent) {
+      contentTimer = window.setTimeout(pumpContent, 45);
+      return;
+    }
+    contentTimer = null;
+    if (streamDone) {
+      void finalizeStream();
+    }
+  }
+
+  function scheduleContentPump(): void {
+    if (contentTimer !== null) return;
+    contentTimer = window.setTimeout(pumpContent, 0);
+  }
+
+  function flushThinkingPreview(): void {
+    thinkingPreviewTimer = null;
+    assistantMessage.thinkingPreview = thinkingBuffer.slice(-900);
+    assistantMessage.thinkingStats = {
+      chars: thinkingBuffer.length,
+      chunks: thinkingChunks,
+      lastUpdatedAt: Date.now(),
+    };
+  }
+
+  function scheduleThinkingPreview(): void {
+    if (thinkingPreviewTimer !== null) return;
+    thinkingPreviewTimer = window.setTimeout(flushThinkingPreview, 350);
   }
 
   streamHandle?.close();
   streamHandle = openChatStream(currentSessionId.value, query, {
     onToken(token) {
+      noteStreamEvent();
       pendingContent += token;
-      scheduleFlush();
+      scheduleContentPump();
     },
     onThinking(chunk) {
-      pendingThinking += chunk;
-      scheduleFlush();
+      noteStreamEvent();
+      thinkingBuffer += chunk;
+      thinkingChunks += 1;
+      scheduleThinkingPreview();
     },
     onStatus(step, label, state) {
-      // 节点状态频率不高（一次对话约 3-6 条），不必走 rAF 节流，直接 upsert 到 steps。
-      // 同一 step 重复出现就更新（例如 running -> done 的切换），新 step 追加在末尾。
-      const steps = assistantMessage.steps ?? [];
-      const existing = steps.find((item) => item.id === step);
-      const now = Date.now();
-      if (existing) {
-        existing.label = label;
-        existing.state = state;
-        if (state === "done") existing.endedAt = now;
-      } else {
-        steps.push({
-          id: step,
-          label,
-          state,
-          startedAt: now,
-          endedAt: state === "done" ? now : undefined,
-        });
-      }
-      assistantMessage.steps = steps;
+      noteStreamEvent();
+      upsertStep({ id: step, label, state });
+    },
+    onProgress(step, detail) {
+      noteStreamEvent();
+      const existing = assistantMessage.steps?.find((item) => item.id === step);
+      upsertStep({
+        id: step,
+        label: existing?.label ?? "正在处理",
+        state: existing?.state ?? "running",
+        detail,
+      });
+    },
+    onTrace(step, label, state, detail) {
+      noteStreamEvent();
+      upsertStep({ id: step, label, state, detail });
     },
     onSources(sources: SourceFile[]) {
       assistantMessage.sources = sources;
     },
     async onDone() {
-      // 上流结束前先把缓冲区里最后那一点 token 同步冲出去，避免丢尾。
-      flushPending();
-      // 兜底：极端情况下整轮没有正式 token（例如纯 thinking 后流就结束了），
-      // 也要把 isThinking 收尾，避免气泡一直转圈。
-      if (assistantMessage.isThinking) {
-        assistantMessage.isThinking = false;
-        assistantMessage.thinkingEndAt = Date.now();
+      noteStreamEvent();
+      streamDone = true;
+      flushThinkingPreview();
+      if (!pendingContent && contentTimer === null) {
+        await finalizeStream();
       }
-      assistantMessage.isStreaming = false;
-      streaming.value = false;
-      await loadHistory();
     },
     onError(message) {
-      flushPending();
+      window.clearInterval(heartbeatTimer);
+      if (contentTimer !== null) {
+        window.clearTimeout(contentTimer);
+        contentTimer = null;
+      }
+      if (thinkingPreviewTimer !== null) {
+        window.clearTimeout(thinkingPreviewTimer);
+        thinkingPreviewTimer = null;
+      }
+      if (pendingContent) {
+        markFirstVisibleToken();
+        assistantMessage.content += pendingContent;
+        pendingContent = "";
+      }
+      if (thinkingBuffer) {
+        assistantMessage.thinkingPreview = thinkingBuffer.slice(-900);
+        assistantMessage.thinkingFull = thinkingBuffer;
+        assistantMessage.thinking = thinkingBuffer;
+      }
       assistantMessage.isThinking = false;
       assistantMessage.isStreaming = false;
       streaming.value = false;
@@ -304,9 +469,7 @@ async function sendMessage(input?: unknown): Promise<void> {
 const renameModalOpen = ref(false);
 const renameDraft = ref("");
 
-// 是否显示模型的 <think> 思考过程：默认显示。
-// 关闭后前端给对话区根节点加一个 `hide-thinking` class，
-// 全局 CSS 把 `.hide-thinking .think-block { display: none }` 隐藏掉。
+// 是否展示详细过程：关闭时仍保留简洁状态条，避免用户看到空等。
 const showThinking = ref(true);
 
 function onRenameCurrent(): void {
@@ -482,16 +645,16 @@ onMounted(async () => {
                 输入你的问题
               </a-typography-text>
               <a-tooltip
-                title="开启后，助手回复中如有思考过程会以折叠块展示；关闭则只看最终答案。"
+                title="开启后展示步骤详情、处理日志和推理摘录；关闭后仍保留简洁状态，避免等待感。"
               >
                 <span class="composer__toggle">
                   <a-switch
                     v-model:checked="showThinking"
                     size="small"
-                    checked-children="思考"
-                    un-checked-children="隐藏"
+                    checked-children="详细"
+                    un-checked-children="简洁"
                   />
-                  <span class="composer__toggle-label">显示思考过程</span>
+                  <span class="composer__toggle-label">详细过程</span>
                 </span>
               </a-tooltip>
             </div>

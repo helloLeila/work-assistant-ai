@@ -10,6 +10,10 @@ const props = defineProps<{
 }>();
 
 const expanded = ref(false);
+const showFullThinking = ref(false);
+const expandedStepIds = ref<Set<string>>(new Set());
+const streamingHtml = ref("");
+let markdownPreviewTimer: ReturnType<typeof setTimeout> | null = null;
 
 // 一个 250ms 心跳，让"思考中... 3.2s"的秒数能实时跳动。
 // 只在该气泡的 isThinking=true 时启动；结束就销毁，避免无意义的重渲染。
@@ -49,6 +53,11 @@ watch(
   { immediate: true },
 );
 onBeforeUnmount(stopTimer);
+onBeforeUnmount(() => {
+  if (markdownPreviewTimer) {
+    clearTimeout(markdownPreviewTimer);
+  }
+});
 
 // 思考耗时（秒，保留 1 位小数）。
 // - 思考中：用 liveNow - thinkingStartAt
@@ -58,18 +67,39 @@ const thinkingDurationLabel = computed(() => {
   if (!start) return "";
   const end = props.message.isThinking ? liveNow.value : props.message.thinkingEndAt ?? liveNow.value;
   const seconds = Math.max(0, (end - start) / 1000);
+  if (!props.message.isThinking && seconds < 1) return "";
   return seconds.toFixed(1);
 });
+
+const thinkingElapsedMs = computed(() => {
+  const start = props.message.thinkingStartAt;
+  if (!start) return 0;
+  const end = props.message.isStreaming ? liveNow.value : props.message.thinkingEndAt ?? liveNow.value;
+  return Math.max(0, end - start);
+});
+
+const hasThinkingDetail = computed(() =>
+  Boolean(props.message.thinkingPreview || props.message.thinkingFull || props.message.thinking),
+);
 
 // 是否要显示豆包风格的"思考链"块：
 // 1. 正在思考中（即使 thinking 文本还是空的，也显示带秒表的占位条）
 // 2. 已经收到过 thinking 文本（结束后保留为可展开的"已深度思考"块）
 // 3. 有 LangGraph 节点级进度需要展示（即使模型不走 reasoning，节点状态也能撑场）
 const showThinkingBlock = computed(() => {
+  const hasSteps = props.message.steps && props.message.steps.length > 0;
+  const hasOnlyFastSteps =
+    !props.message.isStreaming &&
+    !hasThinkingDetail.value &&
+    hasSteps &&
+    thinkingElapsedMs.value < 1000;
+  if (hasOnlyFastSteps) return false;
   return Boolean(
     props.message.isThinking ||
       props.message.thinking ||
-      (props.message.steps && props.message.steps.length > 0),
+      props.message.thinkingPreview ||
+      props.message.thinkingFull ||
+      hasSteps,
   );
 });
 
@@ -77,11 +107,24 @@ const showThinkingBlock = computed(() => {
  * - 流仍在进行中：显示，让用户看进度
  * - 流已结束：仍保留，让用户能回顾经过了哪些节点（与 Claude Code/Cursor 一致） */
 const stepsList = computed(() => props.message.steps ?? []);
+const thinkingDetailLabel = computed(() => {
+  const stats = props.message.thinkingStats;
+  if (!stats?.chars) return "";
+  const chars = stats.chars >= 1000 ? `${(stats.chars / 1000).toFixed(1)}k` : String(stats.chars);
+  return `已接收 ${chars} 字`;
+});
+const thinkingVisibleText = computed(() => {
+  if (showFullThinking.value && props.message.thinkingFull) {
+    return props.message.thinkingFull;
+  }
+  return props.message.thinkingPreview || props.message.thinking || "";
+});
 
 /** 单个步骤已经耗时多久（仅 done 状态展示静态值，running 状态用心跳实时刷新）。 */
 function stepDurationLabel(step: { startedAt: number; endedAt?: number }): string {
   const end = step.endedAt ?? liveNow.value;
   const ms = Math.max(0, end - step.startedAt);
+  if (ms < 800) return "";
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
 }
@@ -89,6 +132,24 @@ function stepDurationLabel(step: { startedAt: number; endedAt?: number }): strin
 function toggleThinking() {
   // Vue 的响应式代理直接改 prop 字段是合法的（父组件传的是 reactive 对象引用）。
   props.message.thinkingExpanded = !props.message.thinkingExpanded;
+}
+
+function toggleFullThinking() {
+  showFullThinking.value = !showFullThinking.value;
+}
+
+function toggleStep(stepId: string) {
+  const next = new Set(expandedStepIds.value);
+  if (next.has(stepId)) {
+    next.delete(stepId);
+  } else {
+    next.add(stepId);
+  }
+  expandedStepIds.value = next;
+}
+
+function isStepExpanded(stepId: string): boolean {
+  return expandedStepIds.value.has(stepId);
 }
 
 // 强制使用同步模式，避免 marked v15+ 默认返回 Promise 时 v-html 渲染为空。
@@ -113,14 +174,43 @@ function transformThinkBlocks(raw: string): string {
   return result;
 }
 
-const htmlContent = computed(() => {
-  const preprocessed = transformThinkBlocks(props.message.content);
+function renderMarkdown(raw: string): string {
+  const preprocessed = transformThinkBlocks(raw);
   const rawHtml = marked.parse(preprocessed, { async: false }) as string;
   return DOMPurify.sanitize(rawHtml, {
     // 显式允许 details/summary，让 DOMPurify 不要把它们当作未知标签丢掉。
     ADD_TAGS: ["details", "summary"],
     ADD_ATTR: ["open"],
   });
+}
+
+function updateStreamingMarkdown(): void {
+  markdownPreviewTimer = null;
+  streamingHtml.value = renderMarkdown(props.message.content);
+}
+
+watch(
+  () => [props.message.content, props.message.isStreaming] as const,
+  () => {
+    if (!(props.message.role === "assistant" && props.message.isStreaming)) {
+      if (markdownPreviewTimer) {
+        clearTimeout(markdownPreviewTimer);
+        markdownPreviewTimer = null;
+      }
+      streamingHtml.value = "";
+      return;
+    }
+    if (markdownPreviewTimer) return;
+    markdownPreviewTimer = setTimeout(updateStreamingMarkdown, 180);
+  },
+  { immediate: true },
+);
+
+const htmlContent = computed(() => {
+  if (props.message.role === "assistant" && props.message.isStreaming) {
+    return streamingHtml.value || renderMarkdown(props.message.content);
+  }
+  return renderMarkdown(props.message.content);
 });
 </script>
 
@@ -154,7 +244,7 @@ const htmlContent = computed(() => {
         <button
           type="button"
           class="thinking__header"
-          :disabled="!message.thinking"
+          :disabled="!hasThinkingDetail"
           @click="toggleThinking"
         >
           <span class="thinking__icon" aria-hidden="true">
@@ -167,10 +257,12 @@ const htmlContent = computed(() => {
             </svg>
           </span>
           <span class="thinking__label">
-            {{ message.isThinking ? "思考中" : "已深度思考" }}
-            <span class="thinking__duration">{{ thinkingDurationLabel }}s</span>
+            {{ message.isStreaming ? "正在处理" : "处理完成" }}
+            <span v-if="thinkingDurationLabel" class="thinking__duration">
+              {{ thinkingDurationLabel }}s
+            </span>
           </span>
-          <span v-if="message.thinking" class="thinking__caret" aria-hidden="true">
+          <span v-if="hasThinkingDetail" class="thinking__caret" aria-hidden="true">
             <svg
               viewBox="0 0 12 12"
               width="10"
@@ -193,23 +285,63 @@ const htmlContent = computed(() => {
             v-for="step in stepsList"
             :key="step.id"
             class="thinking__step"
-            :class="`thinking__step--${step.state}`"
+            :class="[
+              `thinking__step--${step.state}`,
+              { 'thinking__step--pulse': step.state === 'running' },
+            ]"
           >
-            <span class="thinking__step-icon" aria-hidden="true">
-              <span v-if="step.state === 'running'" class="thinking__step-spinner" />
-              <svg v-else viewBox="0 0 12 12" width="11" height="11">
-                <path
-                  fill="currentColor"
-                  d="M10.28 3.22a.75.75 0 0 1 0 1.06l-5 5a.75.75 0 0 1-1.06 0l-2.5-2.5a.75.75 0 0 1 1.06-1.06L4.75 7.69l4.47-4.47a.75.75 0 0 1 1.06 0Z"
-                />
-              </svg>
-            </span>
-            <span class="thinking__step-label">{{ step.label }}</span>
-            <span class="thinking__step-duration">{{ stepDurationLabel(step) }}</span>
+            <button
+              type="button"
+              class="thinking__step-main"
+              :disabled="!(step.detail || step.details?.length)"
+              @click="toggleStep(step.id)"
+            >
+              <span class="thinking__step-icon" aria-hidden="true">
+                <span v-if="step.state === 'running'" class="thinking__step-spinner" />
+                <svg v-else viewBox="0 0 12 12" width="11" height="11">
+                  <path
+                    fill="currentColor"
+                    d="M10.28 3.22a.75.75 0 0 1 0 1.06l-5 5a.75.75 0 0 1-1.06 0l-2.5-2.5a.75.75 0 0 1 1.06-1.06L4.75 7.69l4.47-4.47a.75.75 0 0 1 1.06 0Z"
+                  />
+                </svg>
+              </span>
+              <span class="thinking__step-label">
+                <span>{{ step.label }}</span>
+                <span v-if="step.detail" class="thinking__step-detail">
+                  {{ step.detail }}
+                </span>
+              </span>
+              <span v-if="stepDurationLabel(step)" class="thinking__step-duration">
+                {{ stepDurationLabel(step) }}
+              </span>
+            </button>
+            <div
+              v-if="isStepExpanded(step.id) && (step.detail || step.details?.length)"
+              class="thinking__step-log"
+            >
+              <p v-if="step.detail">{{ step.detail }}</p>
+              <p v-for="(detail, index) in step.details" :key="`${step.id}-${index}`">
+                {{ detail }}
+              </p>
+            </div>
           </li>
         </ul>
-        <div v-if="message.thinkingExpanded && message.thinking" class="thinking__body">
-          {{ message.thinking }}
+        <div v-if="message.thinkingExpanded && hasThinkingDetail" class="thinking__body">
+          <div class="thinking__body-meta">
+            <span>{{ showFullThinking ? "完整思考" : "实时摘录" }}</span>
+            <span v-if="thinkingDetailLabel">{{ thinkingDetailLabel }}</span>
+          </div>
+          <div class="thinking__body-text">
+            {{ thinkingVisibleText }}
+          </div>
+          <button
+            v-if="message.thinkingFull"
+            type="button"
+            class="thinking__body-toggle"
+            @click.stop="toggleFullThinking"
+          >
+            {{ showFullThinking ? "收起为摘录" : "查看完整思考" }}
+          </button>
         </div>
       </div>
 
@@ -350,6 +482,11 @@ const htmlContent = computed(() => {
 
 .bubble__body {
   word-wrap: break-word;
+}
+
+.bubble__plain {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .bubble__body :deep(p) {
@@ -502,14 +639,28 @@ const htmlContent = computed(() => {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid rgba(139, 92, 246, 0.25);
-  border-top-color: #8b5cf6;
-  animation: thinking-spin 0.9s linear infinite;
+  background: #8b5cf6;
+  box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.32);
+  animation: thinking-breathe 1.35s ease-in-out infinite;
 }
 
 @keyframes thinking-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes thinking-breathe {
+  0%,
+  100% {
+    transform: scale(0.82);
+    opacity: 0.72;
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.3);
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 0 6px rgba(139, 92, 246, 0);
   }
 }
 
@@ -546,12 +697,40 @@ const htmlContent = computed(() => {
   padding: 0 12px 10px 36px;
   color: #6b7280;
   line-height: 1.65;
-  white-space: pre-wrap;
   word-break: break-word;
   border-top: 1px dashed rgba(0, 0, 0, 0.06);
   margin-top: 0;
   padding-top: 8px;
   font-size: 12.5px;
+}
+
+.thinking__body-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  color: #9ca3af;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.thinking__body-text {
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.thinking__body-toggle {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #7c3aed;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 /* === LangGraph 节点级步骤列表 === */
@@ -567,13 +746,54 @@ const htmlContent = computed(() => {
 }
 
 .thinking__step {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   font-size: 12.5px;
   line-height: 1.5;
   color: #6b7280;
   font-variant-numeric: tabular-nums;
+  border-radius: 8px;
+  transition: background 0.18s ease;
+}
+
+.thinking__step--pulse {
+  background: linear-gradient(
+    90deg,
+    rgba(139, 92, 246, 0.1),
+    rgba(139, 92, 246, 0.02),
+    rgba(16, 185, 129, 0.08),
+    rgba(139, 92, 246, 0.1)
+  );
+  background-size: 260% 100%;
+  animation: thinking-shimmer 1.9s ease-in-out infinite;
+}
+
+@keyframes thinking-shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+.thinking__step-main {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.thinking__step-main:not(:disabled) {
+  cursor: pointer;
+}
+
+.thinking__step-main:disabled {
+  cursor: default;
 }
 
 .thinking__step--running {
@@ -602,13 +822,26 @@ const htmlContent = computed(() => {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 1.6px solid rgba(139, 92, 246, 0.25);
-  border-top-color: #8b5cf6;
-  animation: thinking-spin 0.9s linear infinite;
+  background: #8b5cf6;
+  box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.32);
+  animation: thinking-breathe 1.2s ease-in-out infinite;
 }
 
 .thinking__step-label {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.thinking__step-detail {
+  margin-top: 1px;
+  color: #9ca3af;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .thinking__step-duration {
@@ -618,5 +851,24 @@ const htmlContent = computed(() => {
 
 .thinking__step--running .thinking__step-duration {
   color: #a78bfa;
+}
+
+.thinking__step-log {
+  margin: 4px 0 4px 22px;
+  padding: 6px 8px;
+  border-left: 2px solid rgba(139, 92, 246, 0.18);
+  color: #8b93a1;
+  background: rgba(255, 255, 255, 0.58);
+  border-radius: 0 8px 8px 0;
+}
+
+.thinking__step-log p {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.thinking__step-log p + p {
+  margin-top: 3px;
 }
 </style>

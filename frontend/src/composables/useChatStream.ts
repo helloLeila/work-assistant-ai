@@ -9,6 +9,13 @@ type StreamHandlers = {
    * label 是给用户看的中文，state 取 running | done。
    * 在'模型还没吐 token'的几秒里，前端用这个事件驱动"步骤列表"UI。 */
   onStatus?: (step: string, label: string, state: "running" | "done") => void;
+  onProgress?: (step: string, detail: string) => void;
+  onTrace?: (
+    step: string,
+    label: string,
+    state: "running" | "done",
+    detail: string,
+  ) => void;
   onSources: (sources: SourceFile[]) => void;
   onDone: () => void;
   onError: (message: string) => void;
@@ -42,6 +49,7 @@ export function openChatStream(
       step?: string;
       label?: string;
       state?: "running" | "done";
+      detail?: string;
     };
 
     if (payload.type === "token") {
@@ -59,6 +67,25 @@ export function openChatStream(
       // 缺字段直接忽略，让前端对协议升级保持兼容。
       if (payload.step && payload.label && payload.state) {
         handlers.onStatus?.(payload.step, payload.label, payload.state);
+      }
+      return;
+    }
+
+    if (payload.type === "progress") {
+      if (payload.step && payload.detail) {
+        handlers.onProgress?.(payload.step, payload.detail);
+      }
+      return;
+    }
+
+    if (payload.type === "trace") {
+      if (payload.step && payload.label && payload.state) {
+        handlers.onTrace?.(
+          payload.step,
+          payload.label,
+          payload.state,
+          payload.detail ?? "",
+        );
       }
       return;
     }

@@ -64,19 +64,12 @@ function cancelEditing(): void {
 <template>
   <aside class="sidebar-shell">
     <div class="space-y-7">
-      <!-- 品牌区 -->
-      <div class="brand-card">
-        <div class="brand-logo">R</div>
-        <div>
-          <p class="brand-eyebrow">RuiRui AI</p>
-          <p class="brand-title">企业智能办公助手</p>
-        </div>
-      </div>
+     
 
-      <p class="intro-text">
+      <!-- <p class="intro-text">
         支持知识检索、薪酬查询、个人信息查询和商旅代办，
         在同一条对话流里完成权限控制与结构化处理。
-      </p>
+      </p> -->
 
       <!-- 导航 -->
       <nav class="space-y-2">

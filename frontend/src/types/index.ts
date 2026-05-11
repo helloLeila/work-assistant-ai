@@ -27,6 +27,12 @@ export interface ChatStep {
   label: string;
   /** running = 进行中（spinner），done = 已完成（对勾）。 */
   state: "running" | "done";
+  /** 当前步骤的即时说明，适合简洁模式展示。 */
+  detail?: string;
+  /** 可展开的过程日志，适合详细模式展示。 */
+  details?: string[];
+  /** 本地 heartbeat 生成的临时说明，区别于后端真实事件。 */
+  synthetic?: boolean;
   /** 进入该步骤的时间戳（ms）。可以拿来显示"耗时 1.2s"。 */
   startedAt: number;
   /** 离开该步骤的时间戳（ms）。仅 state=done 时有值。 */
@@ -37,10 +43,22 @@ export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  /** 流式期间低频转换后的 Markdown HTML，避免每次 token 都重排整段正文。 */
+  renderedContent?: string;
   createdAt: string;
   sources?: SourceFile[];
   /** 累积的"思考过程"原文（豆包风格折叠块的内容来源）。 */
   thinking?: string;
+  /** 流式期间展示的轻量 thinking 摘录，只保留尾部窗口，避免长文本持续重绘。 */
+  thinkingPreview?: string;
+  /** 完整 thinking 原文。流结束后落到响应式对象，按需展开查看。 */
+  thinkingFull?: string;
+  /** thinking 流的轻量统计信息，用于过程面板展示接收进度。 */
+  thinkingStats?: {
+    chars: number;
+    chunks: number;
+    lastUpdatedAt: number;
+  };
   /** 该助手消息开始流式响应时的时间戳（ms）。 */
   thinkingStartAt?: number;
   /** 第一段正式回答开始流出时的时间戳（ms）。用来算"已深度思考 x 秒"。 */
