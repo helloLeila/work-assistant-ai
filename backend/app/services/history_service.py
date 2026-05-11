@@ -65,6 +65,19 @@ class HistoryService:
         )
         self._save_all(payload)
 
+    def get_last_assistant_content(self, user_id: str, session_id: str) -> str:
+        """返回指定会话最近一条助手消息正文。"""
+        session = self._load_all().get(user_id, {}).get(session_id)
+        if not session:
+            return ""
+        turns = session.get("turns", [])
+        if not isinstance(turns, list):
+            return ""
+        for turn in reversed(turns):
+            if isinstance(turn, dict) and turn.get("role") == "assistant":
+                return str(turn.get("content") or "")
+        return ""
+
     def rename_session(self, user_id: str, session_id: str, title: str) -> bool:
         """重命名会话，返回是否成功（False 表示会话不存在）。"""
         payload = self._load_all()

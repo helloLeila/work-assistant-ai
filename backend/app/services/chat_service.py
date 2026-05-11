@@ -8,6 +8,7 @@ from functools import lru_cache
 from app.agents.office_assistant_graph import GraphRuntimeContext, get_office_assistant_graph
 from app.core.security import CurrentUser
 from app.core.streaming import SSEStreamer
+from app.services.followup_service import answer_contextual_followup
 from app.services.history_service import get_history_service
 
 
@@ -37,6 +38,27 @@ class ChatService:
         )
 
         try:
+            followup_answer = answer_contextual_followup(
+                query,
+                self._history.get_last_assistant_content(current_user.user_id, session_id),
+            )
+            if followup_answer is not None:
+                await streamer.push_status(step="followup", label="理解追问", state="running")
+                await streamer.push_progress(step="followup", detail="结合上一轮薪酬结果解释权限脱敏")
+                await streamer.push_status(step="followup", label="理解追问", state="done")
+                for character in followup_answer:
+                    await streamer.push_token(character)
+                self._history.append_turn(
+                    user_id=current_user.user_id,
+                    session_id=session_id,
+                    title=title,
+                    role="assistant",
+                    content=followup_answer,
+                    sources=[],
+                )
+                await streamer.push_done()
+                return
+
             state = await self._graph.ainvoke(
                 {
                     "session_id": session_id,
