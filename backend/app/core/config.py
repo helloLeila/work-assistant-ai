@@ -122,6 +122,22 @@ class Settings(BaseSettings):
     travel_api_timeout_seconds: float = 10.0
     travel_api_fallback_enabled: bool = True
 
+    # ===== Bocha Web Search 配置 =====
+    # 详见 openspec/changes/add-web-research-intent。
+    # 留空 BOCHA_API_KEY 时,web_research_write 路径会自动降级到 direct_write,
+    # 启动不会报错,适合本地未配置 key 的开发场景。
+    bocha_api_key: str = ""
+    bocha_base_url: str = "https://api.bocha.cn/v1"
+    # 单次返回的搜索结果条数(1-10)。Bocha 默认 10,但前端 chip 渲染压力 + 模型上下文都
+    # 不需要那么多,5 条足够覆盖大多数写作素材场景。
+    bocha_max_results: int = 5
+    # 单次调用超时秒数。与 utility 分类的 1.5s 阈值对齐,超时即降级,
+    # 绝不让用户卡 10s 看到 timeout 错误。
+    bocha_timeout_seconds: float = 1.5
+    # Bocha freshness 过滤:oneDay / oneWeek / oneMonth / oneYear / noLimit。
+    # 默认 oneMonth 兼顾"今天天气""2026 趋势""最新新闻"等多数场景。
+    bocha_freshness: str = "oneMonth"
+
     upload_dir: Path = DATA_ROOT / "uploads"
     knowledge_index_dir: Path = DATA_ROOT / "knowledge_index"
     knowledge_seed_dir: Path = DATA_ROOT / "seed_docs"
@@ -179,6 +195,11 @@ class Settings(BaseSettings):
     def has_embedding_model(self) -> bool:
         """是否配置了可用的 Embedding 模型名。"""
         return bool(self.openai_embedding_model.strip())
+
+    @property
+    def bocha_enabled(self) -> bool:
+        """是否配置了 Bocha API key。留空时 web_research_write 会降级到 direct_write。"""
+        return bool(self.bocha_api_key.strip())
 
     @property
     def normalized_business_db_backend(self) -> str:
