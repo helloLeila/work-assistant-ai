@@ -333,3 +333,8 @@ async def _augment_query(query: str, client_ip: str | None) -> str:
 
 ## 验证后发现博查返回的数据不准，需要调用专门的天气接口api 
 这里我选择和风天气，采用jwt加密，提供了很多免费的天气接口，https://console.qweather.com/project?lang=zh
+这里先进行修复 
+  1.将立刻把天气查询的 freshness 从 oneMonth 改成按天气单独 oneDay
+  2. 加 WeatherExtractor，不要直接展示 snippet
+  3. 加日期校验，过期天气直接丢弃
+  4. 等链路稳定后，再替换成专门天气 API

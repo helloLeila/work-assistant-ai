@@ -13,7 +13,13 @@ from app.models.domain import WebSearchHit, WebSearchResult
 class WebSearchService:
     """联网搜索服务。超时/失败即抛异常，由调用方降级。"""
 
-    async def search(self, query: str, *, max_results: int | None = None) -> WebSearchResult:
+    async def search(
+        self,
+        query: str,
+        *,
+        max_results: int | None = None,
+        freshness: str | None = None,
+    ) -> WebSearchResult:
         settings = get_settings()
         limit = max_results if max_results is not None else settings.bocha_max_results
         url = f"{settings.bocha_base_url.rstrip('/')}/web-search"
@@ -21,7 +27,7 @@ class WebSearchService:
         payload = {
             "query": query,
             "count": limit,
-            "freshness": settings.bocha_freshness,
+            "freshness": freshness or settings.bocha_freshness,
             "summary": True,
         }
 

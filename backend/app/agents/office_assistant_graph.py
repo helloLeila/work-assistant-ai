@@ -31,6 +31,7 @@ class GraphState(TypedDict, total=False):
     session_id: str
     query: str
     current_user: CurrentUser
+    client_ip: str | None
     intent: str
     confidence: float
     candidate_intents: list[str]
@@ -181,9 +182,10 @@ def get_office_assistant_graph():
             "knowledge_rag_node": "knowledge_rag_node",
             "auth_check_node": "auth_check_node",
             "travel_booking_node": "travel_booking_node",
-            # chitchat / 写作类原本直通 generate_node，现在先过 planner_node 做长输出规划；
+            "web_search_node": "web_search_node",
+            # chitchat / 写作类现在统一先过 planner_node 做长输出规划；
             # 短查询/无字数要求时 planner 是 pass-through，几乎零开销。
-            "generate_node": "planner_node",
+            "planner_node": "planner_node",
         },
     )
     builder.add_edge("planner_node", "generate_node")
@@ -242,7 +244,13 @@ def build_graph_blueprint() -> GraphBlueprint:
             "hallucination_check_node",
         ],
         edges={
-            "intent_router_node": ["knowledge_rag_node", "auth_check_node", "travel_booking_node", "planner_node"],
+            "intent_router_node": [
+                "knowledge_rag_node",
+                "auth_check_node",
+                "travel_booking_node",
+                "web_search_node",
+                "planner_node",
+            ],
             "knowledge_rag_node": ["grader_node"],
             "grader_node": ["generate_node", "web_search_node"],
             "auth_check_node": ["salary_query_node", "personal_info_node", "generate_node"],

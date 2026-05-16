@@ -30,9 +30,33 @@ def _is_private_ip(ip: str) -> bool:
         return True
 
 
+def _extract_client_ip(request: Request) -> str | None:
+    """提取真实公网 IP，兼容反向代理。"""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        for candidate in forwarded.split(","):
+            ip = candidate.strip()
+            if ip and not _is_private_ip(ip):
+                return ip
+
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        ip = real_ip.strip()
+        if ip and not _is_private_ip(ip):
+            return ip
+
+    if request.client and request.client.host:
+        host = request.client.host.strip()
+        if host and not _is_private_ip(host):
+            return host
+
+    return None
+
+
 @router.post("/stream")
 async def chat_stream(
     payload: ChatStreamRequest,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> StreamingResponse:
     """通过 POST 发起 SSE 对话流。"""
@@ -40,12 +64,14 @@ async def chat_stream(
         session_id=payload.session_id,
         query=payload.query,
         current_user=current_user,
+        client_ip=_extract_client_ip(request),
     )
     return StreamingResponse(generator, media_type="text/event-stream")
 
 
 @router.get("/stream")
 async def chat_stream_get(
+    request: Request,
     session_id: str = Query(...),
     query: str = Query(...),
     current_user: CurrentUser = Depends(get_current_user),
@@ -55,6 +81,7 @@ async def chat_stream_get(
         session_id=session_id,
         query=query,
         current_user=current_user,
+        client_ip=_extract_client_ip(request),
     )
     return StreamingResponse(generator, media_type="text/event-stream")
 

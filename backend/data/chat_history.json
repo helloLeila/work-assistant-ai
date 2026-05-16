@@ -3,7 +3,7 @@
     "session-test-002": {
       "session_id": "session-test-002",
       "title": "帮我查看我的年假",
-      "updated_at": "2026-05-16T15:24:40.007480",
+      "updated_at": "2026-05-16T15:53:50.756233",
       "turns": [
         {
           "role": "user",
@@ -1186,13 +1186,37 @@
           "content": "李伟，剩余年假 7 天。",
           "created_at": "2026-05-16 15:24:40",
           "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我查看我的剩余年假",
+          "created_at": "2026-05-16 15:53:27",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "李伟，剩余年假 7 天。",
+          "created_at": "2026-05-16 15:53:27",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "帮我查看我的剩余年假",
+          "created_at": "2026-05-16 15:53:50",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "李伟，剩余年假 7 天。",
+          "created_at": "2026-05-16 15:53:50",
+          "sources": []
         }
       ]
     },
     "session-test-001": {
       "session_id": "session-test-001",
       "title": "请查询我这个月的薪酬总包",
-      "updated_at": "2026-05-16T15:24:39.986672",
+      "updated_at": "2026-05-16T15:53:50.734988",
       "turns": [
         {
           "role": "user",
@@ -1565,6 +1589,30 @@
           "content": "你最近一期（2026-04）的薪酬信息：总包 23200 元，基本工资 受限，奖金 受限，津贴 受限，个税 受限，社保 受限。",
           "created_at": "2026-05-16 15:24:39",
           "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我这个月的薪酬总包",
+          "created_at": "2026-05-16 15:53:26",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "你最近一期（2026-04）的薪酬信息：总包 23200 元，基本工资 受限，奖金 受限，津贴 受限，个税 受限，社保 受限。",
+          "created_at": "2026-05-16 15:53:27",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "请查询我这个月的薪酬总包",
+          "created_at": "2026-05-16 15:53:50",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "你最近一期（2026-04）的薪酬信息：总包 23200 元，基本工资 受限，奖金 受限，津贴 受限，个税 受限，社保 受限。",
+          "created_at": "2026-05-16 15:53:50",
+          "sources": []
         }
       ]
     },
@@ -1584,7 +1632,7 @@
     "session-test-hello": {
       "session_id": "session-test-hello",
       "title": "你好",
-      "updated_at": "2026-05-16T15:24:40.024708",
+      "updated_at": "2026-05-16T15:53:50.774288",
       "turns": [
         {
           "role": "user",
@@ -1650,6 +1698,30 @@
           "role": "assistant",
           "content": "你好，我是企业智能办公助手。你可以直接问我制度、薪酬、年假、个人信息、商旅下单，也可以让我帮你写材料。",
           "created_at": "2026-05-16 15:24:40",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-16 15:53:27",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "你好，我是企业智能办公助手。你可以直接问我制度、薪酬、年假、个人信息、商旅下单，也可以让我帮你写材料。",
+          "created_at": "2026-05-16 15:53:27",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "你好",
+          "created_at": "2026-05-16 15:53:50",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "你好，我是企业智能办公助手。你可以直接问我制度、薪酬、年假、个人信息、商旅下单，也可以让我帮你写材料。",
+          "created_at": "2026-05-16 15:53:50",
           "sources": []
         }
       ]
@@ -1803,7 +1875,7 @@
     "session-test-weather": {
       "session_id": "session-test-weather",
       "title": "天气",
-      "updated_at": "2026-05-16T15:24:40.091785",
+      "updated_at": "2026-05-16T15:53:50.840738",
       "turns": [
         {
           "role": "user",
@@ -1844,6 +1916,39 @@
               "department": "web",
               "score": 1.0,
               "snippet": "今天 26-31°C，多云，南风 3 级，降雨概率 20%。"
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "天气",
+          "created_at": "2026-05-16 15:53:27",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "我暂时没查到「深圳 天气」的可信的最新天气数据。你可以稍后重试，或告诉我更具体的日期。",
+          "created_at": "2026-05-16 15:53:27",
+          "sources": []
+        },
+        {
+          "role": "user",
+          "content": "天气",
+          "created_at": "2026-05-16 15:53:50",
+          "sources": []
+        },
+        {
+          "role": "assistant",
+          "content": "深圳 2026-05-16 天气：多云，20~26°C。来源：天气网。",
+          "created_at": "2026-05-16 15:53:50",
+          "sources": [
+            {
+              "doc_id": "https://weather.example.com/shenzhen",
+              "source_file": "天气网",
+              "page_num": 1,
+              "department": "web",
+              "score": 1.0,
+              "snippet": "2026年05月16日深圳天气预报：多云，温度:26/20°C，南风3级。"
             }
           ]
         }

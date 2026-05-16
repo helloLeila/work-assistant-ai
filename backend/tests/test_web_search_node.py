@@ -33,15 +33,22 @@ def test_weather_query_with_ip_uses_augmented_city_search(monkeypatch) -> None:
     captured: dict[str, str] = {}
 
     class FakeWebSearchService:
-        async def search(self, query: str, *, max_results: int | None = None) -> WebSearchResult:
+        async def search(
+            self,
+            query: str,
+            *,
+            max_results: int | None = None,
+            freshness: str | None = None,
+        ) -> WebSearchResult:
             captured["query"] = query
+            captured["freshness"] = freshness or ""
             return WebSearchResult(
                 query=query,
                 results=[
                     WebSearchHit(
                         title="深圳天气预报",
                         url="https://weather.example.com/shenzhen",
-                        snippet="今天 26-31°C，多云，南风 3 级。",
+                        snippet="2026年05月16日深圳天气预报：多云，温度:26/20°C，南风3级。",
                         site_name="天气网",
                     )
                 ],
@@ -61,5 +68,49 @@ def test_weather_query_with_ip_uses_augmented_city_search(monkeypatch) -> None:
     )
 
     assert captured["query"] == "深圳 天气"
+    assert captured["freshness"] == "oneDay"
+    assert result["structured_data"]["weather_report"]["city"] == "深圳"
+    assert result["structured_data"]["weather_report"]["forecast_date"] == "2026-05-16"
     assert "深圳" in result["structured_data"]["message"]
     assert "多云" in result["structured_data"]["message"]
+
+
+def test_weather_query_discards_stale_results(monkeypatch) -> None:
+    """摘要里的天气日期已过期时，应拒绝作为最新天气展示。"""
+    import app.nodes.web_search_node as web_search_module
+
+    class FakeWebSearchService:
+        async def search(
+            self,
+            query: str,
+            *,
+            max_results: int | None = None,
+            freshness: str | None = None,
+        ) -> WebSearchResult:
+            return WebSearchResult(
+                query=query,
+                results=[
+                    WebSearchHit(
+                        title="深圳天气预报",
+                        url="https://weather.example.com/shenzhen",
+                        snippet=(
+                            "2026年04月25日深圳天气预报: 04/25 (周六): 天气:多云转晴,"
+                            "温度:26/20°C,风向风力:无持续风向<3级"
+                        ),
+                        site_name="天气网",
+                    )
+                ],
+            )
+
+    monkeypatch.setenv("BOCHA_API_KEY", "dummy-key")
+    monkeypatch.setattr(web_search_module, "get_web_search_service", lambda: FakeWebSearchService())
+
+    result = asyncio.run(
+        web_search_node(
+            {
+                "query": "深圳天气",
+            }
+        )
+    )
+
+    assert "可信的最新天气数据" in result["structured_data"]["message"]

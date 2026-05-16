@@ -26,6 +26,7 @@ class ChatService:
         query: str,
         current_user: CurrentUser,
         streamer: SSEStreamer,
+        client_ip: str | None = None,
     ) -> None:
         """执行图并推送流式事件。"""
         title = query[:24]
@@ -64,6 +65,7 @@ class ChatService:
                     "session_id": session_id,
                     "query": query,
                     "current_user": current_user,
+                    "client_ip": client_ip,
                     "retry_count": 0,
                 },
                 {"configurable": {"thread_id": session_id}},
@@ -92,6 +94,7 @@ class ChatService:
         session_id: str,
         query: str,
         current_user: CurrentUser,
+        client_ip: str | None = None,
     ):
         """创建 SSE 生成器。"""
         streamer = SSEStreamer()
@@ -101,6 +104,7 @@ class ChatService:
                 query=query,
                 current_user=current_user,
                 streamer=streamer,
+                client_ip=client_ip,
             )
         )
         try:

@@ -111,15 +111,22 @@ def test_chat_stream_weather_query_uses_ip_augmented_search_and_skips_llm(monkey
     captured: dict[str, str] = {}
 
     class FakeWebSearchService:
-        async def search(self, query: str, *, max_results: int | None = None) -> WebSearchResult:
+        async def search(
+            self,
+            query: str,
+            *,
+            max_results: int | None = None,
+            freshness: str | None = None,
+        ) -> WebSearchResult:
             captured["query"] = query
+            captured["freshness"] = freshness or ""
             return WebSearchResult(
                 query=query,
                 results=[
                     WebSearchHit(
                         title="深圳天气预报",
                         url="https://weather.example.com/shenzhen",
-                        snippet="今天 26-31°C，多云，南风 3 级，降雨概率 20%。",
+                        snippet="2026年05月16日深圳天气预报：多云，温度:26/20°C，南风3级。",
                         site_name="天气网",
                     )
                 ],
@@ -154,6 +161,7 @@ def test_chat_stream_weather_query_uses_ip_augmented_search_and_skips_llm(monkey
 
     assert response.status_code == 200
     assert captured["query"] == "深圳 天气"
+    assert captured["freshness"] == "oneDay"
     assert 'data: {"type":"error"' not in body
     assert "深圳" in _extract_token_text(body)
     assert "多云" in _extract_token_text(body)
