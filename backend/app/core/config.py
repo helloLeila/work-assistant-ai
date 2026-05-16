@@ -8,7 +8,11 @@ from pathlib import Path
 from urllib.parse import quote_plus
 
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 BACKEND_ROOT = PROJECT_ROOT / "backend"
@@ -19,11 +23,42 @@ class Settings(BaseSettings):
     """项目配置对象。"""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # 后端运行时只认 backend/.env 这一个正式配置源。
+        # 这样可以和 frontend/.env 清晰分层，避免根目录再出现第三份配置。
+        env_file=BACKEND_ROOT / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """把 backend/.env 提升为本地开发的首选来源。
+
+        背景：
+        - 这套项目明确要求前后端配置分离：后端看 backend/.env，前端看 frontend/.env。
+        - 真实开发里，外层 shell 常常残留 OPENAI_* / ANTHROPIC_* 变量，
+          如果仍让系统环境变量优先，就会出现“明明改了 backend/.env，但程序还是读旧值”的错觉。
+
+        因此这里把 dotenv 放到 env 前面：
+        1. 显式传入的初始化参数优先级最高；
+        2. backend/.env 作为正式配置源；
+        3. shell 环境变量只作为兜底补充；
+        4. 最后才是 secrets 文件。
+        """
+        return (
+            init_settings,
+            dotenv_settings,
+            env_settings,
+            file_secret_settings,
+        )
 
     app_name: str = "企业智能办公助手"
     app_version: str = "1.0.0"
@@ -131,9 +166,11 @@ class Settings(BaseSettings):
     # 单次返回的搜索结果条数(1-10)。Bocha 默认 10,但前端 chip 渲染压力 + 模型上下文都
     # 不需要那么多,5 条足够覆盖大多数写作素材场景。
     bocha_max_results: int = 5
-    # 单次调用超时秒数。与 utility 分类的 1.5s 阈值对齐,超时即降级,
-    # 绝不让用户卡 10s 看到 timeout 错误。
-    bocha_timeout_seconds: float = 1.5
+    # 单次调用超时秒数。Bocha 是出网 HTTP 调用(DNS + TLS + 远端检索),实测 RTT
+    # 通常在 2-6s,8s 给慢路径留足余量,超时即降级避免卡死。
+    # 历史教训:最初对齐 utility 分类的 1.5s 阈值导致几乎必然超时,详见
+    # docs/后端启动手册.md#125-bocha-联网搜索每次都-timeout。
+    bocha_timeout_seconds: float = 8.0
     # Bocha freshness 过滤:oneDay / oneWeek / oneMonth / oneYear / noLimit。
     # 默认 oneMonth 兼顾"今天天气""2026 趋势""最新新闻"等多数场景。
     bocha_freshness: str = "oneMonth"
@@ -230,8 +267,14 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """缓存配置对象，避免重复解析环境变量。"""
-    settings = Settings()
+    """缓存配置对象，避免重复解析环境变量。
+
+    测试环境默认忽略 backend/.env，避免开发者本机私有配置污染单测结果。
+    """
+    if os.getenv("TONGTONG_TESTING") == "1":
+        settings = Settings(_env_file=None)
+    else:
+        settings = Settings()
     settings.ensure_directories()
     settings.apply_runtime_env()
     return settings

@@ -91,8 +91,9 @@ tongtong/
 │   └── 开发手册.md
 ├── docker-compose.yml
 ├── requirements.txt
-├── .env.example
-└── Makefile
+├── Makefile
+├── backend/.env.example
+└── frontend/.env.example
 ```
 
 ## 快速启动
@@ -100,9 +101,14 @@ tongtong/
 ### 1. 准备环境变量
 
 ```bash
-cp .env.example .env
+cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
 ```
+
+这里开始就按严格前后端分离来：
+
+- `backend/.env` 只给后端用
+- `frontend/.env` 只给前端用
 
 `OPENAI_API_KEY` 可以暂时留空。留空时系统会自动使用本地回退逻辑，方便先把整套流程跑起来。
 
@@ -180,13 +186,13 @@ make kill-backend && make dev-backend
 
 **2. 启动卡在 `Waiting for application startup.` 不动**
 
-通常是 lifespan 阶段调用 Embedding 接口超时。如果你用的模型供应商（例如 MiniMax 国内版）**没有提供 OpenAI 兼容的 Embedding 模型**，请把 `.env` 里的 `OPENAI_EMBEDDING_MODEL` 留空，知识库会自动回退到本地词法检索。改完 `.env` 必须重启后端才会生效（`get_settings()` 有缓存）。
+通常是 lifespan 阶段调用 Embedding 接口超时。如果你用的模型供应商（例如 MiniMax 国内版）**没有提供 OpenAI 兼容的 Embedding 模型**，请把 `backend/.env` 里的 `OPENAI_EMBEDDING_MODEL` 留空，知识库会自动回退到本地词法检索。改完 `backend/.env` 必须重启后端才会生效（`get_settings()` 有缓存）。
 
 **3. 模型名 404 / 一直报错**
 
 OpenAI 兼容接口的 `OPENAI_MODEL` **大小写敏感**。MiniMax 的正确写法是 `MiniMax-M2.7`，写成 `minimax-m2.7` 会 404。
 
-**4. 改了 `.env` 但行为没变**
+**4. 改了 `backend/.env` 但行为没变**
 
 后端没有重启。`Ctrl+C` 停掉旧进程后重新 `make dev-backend`。
 
@@ -225,7 +231,7 @@ npm run dev
 
 ## 商旅接口接入
 
-如果你已经有第三方商旅系统，可以在 `.env` 中配置：
+如果你已经有第三方商旅系统，可以在 `backend/.env` 中配置：
 
 ```env
 TRAVEL_API_BASE_URL=https://travel.example.com

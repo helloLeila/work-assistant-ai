@@ -3,8 +3,7 @@ backend-install:
 	python3 -m pip install -r requirements.txt
 
 # 启动后端开发服务（直接用 venv 里的 uvicorn，无需手动 source 激活）
-# 绕过 shell 里可能存在的 SOCKS 代理：MiniMax 是国内域名，走代理反而需要 socksio。
-# unexport 掉这几个环境变量，httpx 就只走直连，避免 ImportError 把 LLM 弄成 None。
+# 后端正式配置统一放在 backend/.env；这里顺手清掉常见代理变量，避免国内兼容网关误走代理。
 dev-backend:
 	@unset ALL_PROXY HTTP_PROXY HTTPS_PROXY all_proxy http_proxy https_proxy; \
 	NO_PROXY="api.minimaxi.com,.minimaxi.com,localhost,127.0.0.1" \

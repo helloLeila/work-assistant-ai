@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+import ipaddress
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from app.api.deps import get_current_user
@@ -18,6 +20,14 @@ from app.services.chat_service import get_chat_service
 from app.services.history_service import get_history_service
 
 router = APIRouter(prefix="/chat")
+
+
+def _is_private_ip(ip: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip)
+        return addr.is_private or addr.is_loopback or addr.is_link_local
+    except ValueError:
+        return True
 
 
 @router.post("/stream")

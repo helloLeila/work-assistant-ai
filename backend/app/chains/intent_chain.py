@@ -23,27 +23,42 @@ FEW_SHOTS = """
 
 用户：下周二订上海到深圳的机票
 输出：{"intent":"travel","confidence":0.96,"candidate_intents":["travel","knowledge"],"reason":"用户要办理出行预订"}
+
+用户：2026 年 AI Agent 趋势是什么
+输出：{"intent":"web_research_write","confidence":0.94,"candidate_intents":["web_research_write","direct_write"],"reason":"用户询问最新趋势，需要联网素材"}
+
+用户：帮我生成 200 字 agent 总结
+输出：{"intent":"direct_write","confidence":0.91,"candidate_intents":["direct_write","web_research_write"],"reason":"用户要求写作，但未明确是否需要外部素材"}
 """.strip()
 
 
 # 第一层快速路径：关键词。详见 docs/agent-design/02-routing-and-model-tiers.md。
 # 命中即跳过 LLM 分类，对高频常见问题直接返回意图，延迟 ~0ms。
-# chitchat 这一行覆盖两类：
-#   1) 写作/生成类（生成、写、面试经验……）
-#   2) 问候/身份/通用闲聊（你是谁、你好、谢谢……）
-# 后者是 2026 主流办公助手都会预置的 fast-path，避免"你是谁"这种 3 字 query 也打到大模型。
+# chitchat 只保留问候/身份/通用闲聊，写作类拆到 direct_write，联网类拆到 web_research_write。
 KEYWORD_RULES: tuple[tuple[str, list[str], list[str]], ...] = (
     ("salary", ["薪酬", "工资", "总包", "奖金", "薪资", "个税", "收入"], ["personal"]),
     ("personal", ["年假", "合同", "身份证", "手机号", "个人信息", "入职", "部门"], ["knowledge"]),
     ("travel", ["机票", "酒店", "出差", "商旅", "预订", "航班", "舱位", "乘客"], ["knowledge"]),
     ("knowledge", ["制度", "报销", "手册", "知识库", "规定", "政策", "流程", "标准", "FAQ"], ["travel"]),
     (
+        "web_research_write",
+        [
+            "今天", "明天", "昨天", "最新", "最近", "2026", "趋势",
+            "天气", "新闻", "查一下", "搜一下", "联网", "实时",
+        ],
+        ["direct_write", "knowledge"],
+    ),
+    (
+        "direct_write",
+        [
+            "生成", "写", "撰写", "面试", "经验", "介绍", "总结", "润色", "改写",
+        ],
+        ["web_research_write", "knowledge"],
+    ),
+    (
         "chitchat",
         [
-            # 写作/生成类
-            "生成", "写", "撰写", "面试", "经验", "介绍", "总结", "润色", "改写",
-            # 问候/身份/通用闲聊（高频且不会和业务意图歧义）
-            "你是谁", "你叫什么", "你好", "您好", "嗨",
+            "你是谁", "你叫啥","你叫什么", "你好", "您好", "嗨",
             "你能做什么", "你会什么", "怎么用", "帮助",
             "谢谢", "辛苦了", "再见", "拜拜",
             "hi", "hello",
@@ -70,7 +85,7 @@ def _classify_by_local_keywords(query: str) -> IntentClassification | None:
     if not matches:
         return None
 
-    # 多个意图同时命中时交给 LLM 判别，避免“差旅报销制度”这类问题被过早定死。
+    # 多个意图同时命中时交给 LLM 判别，避免"差旅报销制度"这类问题被过早定死。
     top_score = len(matches[0][1])
     if sum(1 for _, hit_words, _ in matches if len(hit_words) == top_score) > 1:
         return None
@@ -125,7 +140,9 @@ async def classify_intent(query: str) -> IntentClassification:
                 (
                     "system",
                     "你是企业智能办公助手的意图分类器。请根据用户问题返回 JSON。"
-                    "意图只能是 knowledge、salary、personal、travel、chitchat 之一。"
+                    "意图只能是 knowledge、salary、personal、travel、chitchat、web_research_write、direct_write 之一。"
+                    "web_research_write 用于需要联网获取最新外部信息的请求（如天气、新闻、趋势、实时数据）。"
+                    "direct_write 用于纯写作/生成类请求，不需要外部素材（如写感谢信、面试经验、润色改写）。"
                     "如果信息不足，请给出最可能的候选意图。",
                 ),
                 ("human", "示例：\n{few_shots}\n\n格式要求：\n{format_instructions}\n\n用户问题：{query}"),
@@ -152,7 +169,9 @@ async def classify_intent(query: str) -> IntentClassification:
             )
     else:
         lowered = query.lower()
-        if any(keyword in query for keyword in ["制度", "报销", "手册", "知识库", "规定"]) or "policy" in lowered:
+        if any(keyword in query for keyword in ["今天", "明天", "昨天", "最新", "最近", "2026", "趋势", "天气", "新闻", "查一下", "搜一下", "联网", "实时"]):
+            result = IntentClassification(intent="web_research_write", confidence=0.8, candidate_intents=["web_research_write", "direct_write"], reason="命中了时效/联网类关键词")
+        elif any(keyword in query for keyword in ["制度", "报销", "手册", "知识库", "规定"]) or "policy" in lowered:
             result = IntentClassification(intent="knowledge", confidence=0.82, candidate_intents=["knowledge", "travel"], reason="命中了制度类关键词")
         elif any(keyword in query for keyword in ["薪酬", "工资", "总包", "奖金"]):
             result = IntentClassification(intent="salary", confidence=0.9, candidate_intents=["salary", "personal"], reason="命中了薪酬类关键词")
@@ -160,13 +179,15 @@ async def classify_intent(query: str) -> IntentClassification:
             result = IntentClassification(intent="personal", confidence=0.88, candidate_intents=["personal", "knowledge"], reason="命中了个人信息类关键词")
         elif any(keyword in query for keyword in ["机票", "酒店", "出差", "商旅", "预订"]):
             result = IntentClassification(intent="travel", confidence=0.91, candidate_intents=["travel", "knowledge"], reason="命中了出行类关键词")
+        elif any(keyword in query for keyword in ["生成", "写", "撰写", "面试", "经验", "介绍", "总结", "润色", "改写"]):
+            result = IntentClassification(intent="direct_write", confidence=0.75, candidate_intents=["direct_write", "web_research_write"], reason="命中了写作类关键词")
         else:
             result = IntentClassification(intent="chitchat", confidence=0.58, candidate_intents=["chitchat", "knowledge"], reason="未命中明确业务关键词")
 
-    # 只有在“业务意图之间分不清”时才需要让用户澄清。
-    # chitchat 本身就不需要高置信度，直接放过去由 generate_node 用模型回答。
+    # 只有在"业务意图之间分不清"时才需要让用户澄清。
+    # chitchat / direct_write / web_research_write 都是通用回答类，不需要高置信度。
     if (
-        result.intent != "chitchat"
+        result.intent not in {"chitchat", "direct_write", "web_research_write"}
         and result.confidence < get_settings().intent_confidence_threshold
     ):
         result.intent = "clarify"

@@ -23,7 +23,9 @@ def route_by_intent(state: dict) -> str:
         "salary": "auth_check_node",
         "personal": "auth_check_node",
         "travel": "travel_booking_node",
-        "chitchat": "generate_node",
-        "clarify": "generate_node",
+        "web_research_write": "web_search_node",
+        "direct_write": "planner_node",
+        "chitchat": "planner_node",
+        "clarify": "planner_node",
     }
-    return mapping.get(state.get("intent", "clarify"), "generate_node")
+    return mapping.get(state.get("intent", "clarify"), "planner_node")

@@ -106,7 +106,7 @@ services:
       dockerfile: backend/Dockerfile
     container_name: ruirui-backend
     env_file:
-      - .env
+      - ./backend/.env
     ports:
       - "8000:8000"
     volumes:
@@ -120,4 +120,3 @@ services:
         condition: service_healthy
       milvus:
         condition: service_healthy
-

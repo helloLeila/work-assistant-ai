@@ -23,6 +23,10 @@ htmlcov/
 .env.bak.*
 .env.local
 .env.*.local
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
 
 # 临时探针 / 一次性脚本（含真实接口探测）
 scripts/probe_key.py

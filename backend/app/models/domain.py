@@ -21,7 +21,7 @@ class SourceCitation(BaseModel):
 class IntentClassification(BaseModel):
     """意图分类结果。"""
 
-    intent: str = Field(description="knowledge/salary/personal/travel/chitchat/clarify")
+    intent: str = Field(description="knowledge/salary/personal/travel/chitchat/clarify/web_research_write/direct_write")
     confidence: float = Field(description="0 到 1 之间的置信度")
     candidate_intents: list[str] = Field(default_factory=list)
     reason: str = ""
@@ -96,6 +96,24 @@ class GraphBlueprint(BaseModel):
     edges: dict[str, list[str]]
     features: list[str]
     checkpoint: str
+
+
+class WebSearchHit(BaseModel):
+    """Bocha 单条搜索结果。"""
+
+    title: str
+    url: str
+    snippet: str
+    site_name: str = ""
+    published_at: str = ""
+
+
+class WebSearchResult(BaseModel):
+    """Bocha 搜索返回结构。"""
+
+    query: str
+    results: list[WebSearchHit]
+    elapsed_ms: int = 0
 
 
 class ToolResult(BaseModel):

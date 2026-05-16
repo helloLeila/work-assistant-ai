@@ -156,6 +156,17 @@ async def generate_node(state: dict, runtime) -> dict:
         return {"final_answer": structured_answer}
 
     context_parts: list[str] = []
+
+    # 处理联网搜索结果：成功时注入素材，失败时注入降级提示
+    structured_data = state.get("structured_data") or {}
+    if structured_data.get("web_search_failed"):
+        context_parts.append(
+            "【系统提示】联网搜索当前不可用，请基于已有知识回答，"
+            "并适当提示用户该信息可能不是最新的。"
+        )
+    elif structured_data.get("web_search_result"):
+        context_parts.append(structured_data["web_search_result"])
+
     if state.get("draft_answer"):
         context_parts.append(_format_context_block(state["draft_answer"]))
     if state.get("structured_data"):

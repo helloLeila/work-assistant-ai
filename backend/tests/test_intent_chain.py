@@ -22,8 +22,8 @@ def test_obvious_business_intent_uses_local_fast_path(monkeypatch) -> None:
     assert "本地快速" in result.reason
 
 
-def test_generation_request_uses_local_chitchat_fast_path(monkeypatch) -> None:
-    """写作/生成类请求应直接进入通用生成，不等待意图 LLM。"""
+def test_generation_request_uses_local_direct_write_fast_path(monkeypatch) -> None:
+    """写作/生成类请求应直接进入 direct_write，不等待意图 LLM。"""
 
     def fail_if_llm_is_used(*args, **kwargs):
         raise AssertionError("generation request should not initialize the LLM")
@@ -32,7 +32,7 @@ def test_generation_request_uses_local_chitchat_fast_path(monkeypatch) -> None:
 
     result = asyncio.run(intent_chain.classify_intent("生成200字面试经验agent方向"))
 
-    assert result.intent == "chitchat"
+    assert result.intent == "direct_write"
     assert result.confidence >= 0.9
     assert "本地快速" in result.reason
 

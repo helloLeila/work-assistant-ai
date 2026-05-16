@@ -28,9 +28,9 @@ def should_run_planner(*, intent: str, target_chars: int | None) -> bool:
     规则：
     - 必须有明确字数要求（detect_length_request 返回值）
     - 字数要求 >= PLANNER_MIN_TARGET_CHARS
-    - 仅对 chitchat（写作类、自由问答）启用——业务类有结构化数据，无需大纲
+    - 仅对写作/闲聊类启用——业务类有结构化数据，无需大纲
     """
-    if intent != "chitchat":
+    if intent not in {"chitchat", "direct_write", "web_research_write"}:
         return False
     if target_chars is None or target_chars < PLANNER_MIN_TARGET_CHARS:
         return False

@@ -87,6 +87,20 @@ def _sanitize_travel_info(info: TravelInfo, query: str) -> TravelInfo:
 
 async def extract_personal_query(query: str) -> PersonalQuery:
     """抽取个人信息查询字段。"""
+    requested_fields = []
+    if "年假" in query:
+        requested_fields.append("annual_leave")
+    if "合同" in query:
+        requested_fields.append("contract_end")
+    if "部门" in query:
+        requested_fields.append("department")
+    if "手机号" in query or "电话" in query:
+        requested_fields.append("phone")
+    if "身份证" in query:
+        requested_fields.append("id_card")
+    if requested_fields:
+        return PersonalQuery(requested_fields=requested_fields)
+
     parser = PydanticOutputParser(pydantic_object=PersonalQuery)
     llm = get_utility_chat_model(temperature=0, tags=["personal_extractor"])
 
@@ -100,15 +114,4 @@ async def extract_personal_query(query: str) -> PersonalQuery:
         chain = prompt | llm | parser
         return await chain.ainvoke({"query": query, "format_instructions": parser.get_format_instructions()})
 
-    requested_fields = []
-    if "年假" in query:
-        requested_fields.append("annual_leave")
-    if "合同" in query:
-        requested_fields.append("contract_end")
-    if "部门" in query:
-        requested_fields.append("department")
-    if "手机号" in query or "电话" in query:
-        requested_fields.append("phone")
-    if "身份证" in query:
-        requested_fields.append("id_card")
-    return PersonalQuery(requested_fields=requested_fields or ["annual_leave", "contract_end"])
+    return PersonalQuery(requested_fields=["annual_leave", "contract_end"])
