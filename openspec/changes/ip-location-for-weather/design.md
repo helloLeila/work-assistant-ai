@@ -329,3 +329,7 @@ async def _augment_query(query: str, client_ip: str | None) -> str:
 | 反向代理拿不到真实 IP              | 中   | 定位到代理服务器所在地   | 优先 X-Forwarded-For → X-Real-IP，剔除内网段                  |
 | IP 归属地变动                      | 低   | 缓存过期前定位到旧城市   | 5min TTL 缓存，用户切换 WiFi/4G 后最多错 5 分钟               |
 | 隐私合规质疑                       | 低   | 用户不满                 | 仅传前 3 段 IP、不持久化、仅天气触发                          |
+
+
+## 验证后发现博查返回的数据不准，需要调用专门的天气接口api 
+这里我选择和风天气，采用jwt加密，提供了很多免费的天气接口，https://console.qweather.com/project?lang=zh
