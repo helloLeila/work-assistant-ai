@@ -13,8 +13,19 @@ _YEAR_DATE_PATTERN = re.compile(r"(20\d{2})[年\-/\.](\d{1,2})[月\-/\.](\d{1,2}
 _MONTH_DAY_SLASH_PATTERN = re.compile(r"(?<!\d)(\d{1,2})[/-](\d{1,2})(?!\d)")
 _MONTH_DAY_CN_PATTERN = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})日")
 _QUERY_EXPLICIT_DATE_PATTERN = re.compile(r"(20\d{2})?[年\-/\.]?\s*(\d{1,2})月?\s*(\d{1,2})日?")
-_TEMP_RANGE_PATTERN = re.compile(r"(?:温度|气温)?[:：]?\s*(-?\d{1,2})\s*[/~-]\s*(-?\d{1,2})\s*°?\s*C", re.IGNORECASE)
-_TEMP_SINGLE_PATTERN = re.compile(r"(?:温度|气温|体感)[:：]?\s*(-?\d{1,2})\s*°?\s*C", re.IGNORECASE)
+_TEMP_UNIT_PATTERN = r"(?:℃|°\s*[Cc]|[Cc])"
+_TEMP_RANGE_PATTERN = re.compile(
+    rf"(?:温度|气温)?[:：]?\s*(-?\d{{1,2}})\s*(?:{_TEMP_UNIT_PATTERN})?\s*(?:/|~|～|-|到)\s*(-?\d{{1,2}})\s*(?:{_TEMP_UNIT_PATTERN})?",
+    re.IGNORECASE,
+)
+_HIGH_TEMP_PATTERN = re.compile(rf"最高温(?:度)?[:：]?\s*(-?\d{{1,2}})\s*(?:{_TEMP_UNIT_PATTERN})", re.IGNORECASE)
+_LOW_TEMP_PATTERN = re.compile(rf"最低温(?:度)?[:：]?\s*(-?\d{{1,2}})\s*(?:{_TEMP_UNIT_PATTERN})", re.IGNORECASE)
+_TEMP_SINGLE_PATTERN = re.compile(rf"(?:当前温度|实时温度|温度|气温)[:：]?\s*(-?\d{{1,2}})\s*(?:{_TEMP_UNIT_PATTERN})", re.IGNORECASE)
+_FEELS_LIKE_PATTERN = re.compile(rf"体感温度?[:：]?\s*(-?\d{{1,2}})\s*(?:{_TEMP_UNIT_PATTERN})", re.IGNORECASE)
+_AIR_QUALITY_PATTERN = re.compile(r"空气质量(?:为)?\s*([优良轻度中度重度严重污染]+)")
+_WIND_PATTERN = re.compile(
+    r"((?:东北|东南|西北|西南|东|西|南|北|无持续)?风(?:转(?:东北|东南|西北|西南|东|西|南|北|无持续)?风)?(?:[<>]?\d+(?:-\d+)?级)?)"
+)
 
 _WEATHER_LABELS = (
     "雷阵雨转多云",
@@ -50,6 +61,10 @@ class WeatherReport:
     condition: str
     temp_low_c: int | None
     temp_high_c: int | None
+    current_temp_c: int | None
+    feels_like_c: int | None
+    wind_text: str
+    air_quality: str
     source_name: str
     source_url: str
 
@@ -96,16 +111,18 @@ class WeatherExtractor:
     ) -> WeatherReport | None:
         text = " ".join(part for part in (hit.title, hit.snippet, hit.published_at) if part)
         dates = self._extract_dates(text, today)
-        if not dates:
-            return None
-
-        forecast_date = self._pick_matching_date(dates, target_date)
-        if forecast_date is None:
-            return None
+        forecast_date = target_date
+        if dates:
+            matched_date = self._pick_matching_date(dates, target_date)
+            if matched_date is None:
+                return None
+            forecast_date = matched_date
 
         condition = self._extract_condition(text)
-        temp_low_c, temp_high_c = self._extract_temperatures(text)
-        if not condition and temp_low_c is None and temp_high_c is None:
+        temp_low_c, temp_high_c, current_temp_c, feels_like_c = self._extract_temperatures(text)
+        wind_text = self._extract_wind(text)
+        air_quality = self._extract_air_quality(text)
+        if not condition and temp_low_c is None and temp_high_c is None and current_temp_c is None:
             return None
 
         return WeatherReport(
@@ -115,6 +132,10 @@ class WeatherExtractor:
             condition=condition or "天气信息待确认",
             temp_low_c=temp_low_c,
             temp_high_c=temp_high_c,
+            current_temp_c=current_temp_c,
+            feels_like_c=feels_like_c,
+            wind_text=wind_text,
+            air_quality=air_quality,
             source_name=hit.site_name or hit.title or "网页来源",
             source_url=hit.url,
         )
@@ -210,19 +231,47 @@ class WeatherExtractor:
                 best_index = index
         return best_label
 
-    def _extract_temperatures(self, text: str) -> tuple[int | None, int | None]:
+    def _extract_temperatures(self, text: str) -> tuple[int | None, int | None, int | None, int | None]:
         match = _TEMP_RANGE_PATTERN.search(text)
         if match:
             first = int(match.group(1))
             second = int(match.group(2))
-            return min(first, second), max(first, second)
+            feels_like_c = self._extract_single_number(_FEELS_LIKE_PATTERN, text)
+            return min(first, second), max(first, second), None, feels_like_c
+
+        high_match = _HIGH_TEMP_PATTERN.search(text)
+        low_match = _LOW_TEMP_PATTERN.search(text)
+        if high_match and low_match:
+            high = int(high_match.group(1))
+            low = int(low_match.group(1))
+            feels_like_c = self._extract_single_number(_FEELS_LIKE_PATTERN, text)
+            return min(low, high), max(low, high), None, feels_like_c
 
         match = _TEMP_SINGLE_PATTERN.search(text)
         if match:
             value = int(match.group(1))
-            return value, value
+            feels_like_c = self._extract_single_number(_FEELS_LIKE_PATTERN, text)
+            return None, None, value, feels_like_c
 
-        return None, None
+        return None, None, None, self._extract_single_number(_FEELS_LIKE_PATTERN, text)
+
+    def _extract_single_number(self, pattern: re.Pattern[str], text: str) -> int | None:
+        match = pattern.search(text)
+        if not match:
+            return None
+        return int(match.group(1))
+
+    def _extract_wind(self, text: str) -> str:
+        match = _WIND_PATTERN.search(text)
+        if not match:
+            return ""
+        return match.group(1)
+
+    def _extract_air_quality(self, text: str) -> str:
+        match = _AIR_QUALITY_PATTERN.search(text)
+        if not match:
+            return ""
+        return match.group(1)
 
 
 @lru_cache

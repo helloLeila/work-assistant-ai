@@ -53,3 +53,70 @@ def test_extract_stale_weather_hit_returns_none() -> None:
     )
 
     assert report is None
+
+
+def test_extract_weather_with_high_low_celsius_symbol() -> None:
+    extractor = WeatherExtractor()
+    hit = WebSearchHit(
+        title="天津天气预报",
+        url="https://weather.example.com/tianjin",
+        snippet="天津今日天气：晴，最高温31℃，最低温18℃，西南风3级。",
+        site_name="天气网",
+    )
+
+    report = extractor.extract(
+        query="天津天气",
+        search_query="天津 天气",
+        results=[hit],
+        today=date(2026, 5, 17),
+    )
+
+    assert report is not None
+    assert report.temp_high_c == 31
+    assert report.temp_low_c == 18
+    assert report.wind_text == "西南风3级"
+
+
+def test_extract_weather_with_range_and_air_quality() -> None:
+    extractor = WeatherExtractor()
+    hit = WebSearchHit(
+        title="天津天气预报",
+        url="https://weather.example.com/tianjin",
+        snippet="5月17日 小雨气温18~24℃，东风转东北风1-3级。空气质量为优。",
+        site_name="中国天气网",
+    )
+
+    report = extractor.extract(
+        query="天津天气",
+        search_query="天津 天气",
+        results=[hit],
+        today=date(2026, 5, 17),
+    )
+
+    assert report is not None
+    assert report.temp_high_c == 24
+    assert report.temp_low_c == 18
+    assert report.wind_text == "东风转东北风1-3级"
+    assert report.air_quality == "优"
+
+
+def test_extract_weather_without_explicit_date_falls_back_to_target_date() -> None:
+    extractor = WeatherExtractor()
+    hit = WebSearchHit(
+        title="天津天气预报",
+        url="https://weather.example.com/tianjin",
+        snippet="天津天气：晴，31°C/18°C。",
+        site_name="天气网",
+    )
+
+    report = extractor.extract(
+        query="天津天气",
+        search_query="天津 天气",
+        results=[hit],
+        today=date(2026, 5, 17),
+    )
+
+    assert report is not None
+    assert report.forecast_date == date(2026, 5, 17)
+    assert report.temp_high_c == 31
+    assert report.temp_low_c == 18

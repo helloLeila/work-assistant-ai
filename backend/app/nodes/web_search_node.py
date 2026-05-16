@@ -18,20 +18,25 @@ def _build_weather_unavailable_message(search_query: str) -> str:
 
 
 def _build_weather_message(report) -> str:
-    temp_part = ""
+    details: list[str] = []
+    if report.condition:
+        details.append(report.condition)
     if report.temp_low_c is not None and report.temp_high_c is not None:
         if report.temp_low_c == report.temp_high_c:
-            temp_part = f"{report.temp_high_c}°C"
+            details.append(f"{report.temp_high_c}°C")
         else:
-            temp_part = f"{report.temp_low_c}~{report.temp_high_c}°C"
+            details.append(f"{report.temp_low_c}~{report.temp_high_c}°C")
+    elif report.current_temp_c is not None:
+        details.append(f"当前 {report.current_temp_c}°C")
+    if report.feels_like_c is not None:
+        details.append(f"体感 {report.feels_like_c}°C")
+    if report.wind_text:
+        details.append(report.wind_text)
+    if report.air_quality:
+        details.append(f"空气质量{report.air_quality}")
 
-    body = report.condition
-    if temp_part:
-        body = f"{body}，{temp_part}"
-    return (
-        f"{report.city} {report.forecast_date.isoformat()} 天气：{body}。"
-        f"来源：{report.source_name}。"
-    )
+    body = "，".join(details) if details else "天气信息待确认"
+    return f"{report.city} {report.forecast_date.isoformat()} 天气：{body}。来源：{report.source_name}。"
 
 
 def _build_web_sources(result: WebSearchResult) -> list[dict[str, object]]:
