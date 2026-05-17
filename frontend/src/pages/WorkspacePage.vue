@@ -19,6 +19,7 @@ import { openChatStream } from "../composables/useChatStream";
 import { requestJson } from "../lib/api";
 import { sessionState } from "../stores/session";
 import type {
+  ChatArtifact,
   ChatStep,
   ChatMessage,
   HistorySession,
@@ -130,6 +131,7 @@ function selectSession(session: HistorySession): void {
     content: turn.content,
     createdAt: turn.created_at,
     sources: turn.sources,
+    artifacts: turn.artifacts,
   }));
 }
 
@@ -428,6 +430,9 @@ async function sendMessage(input?: unknown): Promise<void> {
     },
     onSources(sources: SourceFile[]) {
       assistantMessage.sources = sources;
+    },
+    onArtifact(artifact: ChatArtifact) {
+      assistantMessage.artifacts = [...(assistantMessage.artifacts ?? []), artifact];
     },
     async onDone() {
       noteStreamEvent();
