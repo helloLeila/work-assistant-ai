@@ -128,6 +128,35 @@
 
 这样既保留快速扫读的文本，又让日期能力在视觉上与天气卡片统一。
 
+### 6. 本轮实现默认写详细注释
+
+这轮改动跨越：
+
+- SSE 协议
+- 后端状态与持久化
+- 前端消息模型
+- 条件渲染与历史回放
+
+这些位置后续最容易成为排障入口，因此本轮实现要求新代码和关键改动必须带详细注释，尤其要解释：
+
+- 为什么要新增某个字段或事件
+- 数据从哪个节点流到哪个节点
+- 哪些分支是实时渲染使用，哪些分支是历史回放使用
+- 为什么某些降级场景只显示文本不显示卡片
+- 哪些地方是未来切专门天气 API 时的替换点
+
+注释重点文件：
+
+- `backend/app/core/streaming.py`
+- `backend/app/services/chat_service.py`
+- `backend/app/services/history_service.py`
+- `backend/app/nodes/web_search_node.py`
+- `backend/app/nodes/generate_node.py`
+- `frontend/src/composables/useChatStream.ts`
+- `frontend/src/pages/WorkspacePage.vue`
+- `frontend/src/components/ChatMessageBubble.vue`
+- 新增的天气/日期卡片组件
+
 ## 结构化数据设计
 
 ### WeatherCard
@@ -354,6 +383,121 @@ ChatService 在图执行完成后，按消息顺序把 artifacts 推给前端。
 - 没文本也没卡片：后端路由 / 图编排 / 流式链路问题
 - 只有 `error`：直接回后端异常处理链路查
 
+建议你在浏览器里至少盯住这些事件顺序：
+
+```text
+status(intent running)
+status(intent done)
+status(web_search running)
+progress(web_search ...)
+artifact(weather_card/date_card)
+source(...)
+done
+```
+
+如果你看到：
+
+- `token` 有，但没有 `artifact`
+  说明文本回答通了，但卡片数据没构造出来
+- `artifact` 有，但页面没显示
+  说明前端接收到了，但没挂到消息对象或没渲染
+- `artifact` 和页面都正常，但刷新后消失
+  说明历史持久化或历史回放映射有问题
+
+### 1.1 怎么看 SSE Response 里到底发了什么
+
+对你后面自己调试最重要的是这个顺序：
+
+1. 打开浏览器开发者工具
+2. 切到 `Network`
+3. 发送 `深圳天气` 或 `今天几号`
+4. 点开 `/api/chat/stream`
+5. 看 `Response`
+
+你会看到类似：
+
+```text
+data: {"type":"status","step":"intent","label":"理解需求","state":"running"}
+
+data: {"type":"status","step":"intent","label":"理解需求","state":"done"}
+
+data: {"type":"artifact","artifact":{"kind":"weather_card","version":1,"data":{"city":"深圳"}}}
+
+data: {"type":"token","content":"深圳"}
+
+data: {"type":"token","content":"今天"}
+
+data: {"type":"done"}
+```
+
+这里不要先看页面长什么样，先确认：
+
+- 有没有 `artifact`
+- `artifact.kind` 是不是你期待的 `weather_card` / `date_card`
+- `artifact.data` 字段是不是完整
+- 有没有 `done`
+
+### 1.2 怎么判断是“后端没发”还是“前端没接住”
+
+看 3 个层次：
+
+1. `Network Response`
+   - 有 `artifact`：后端已经发出来了
+   - 没 `artifact`：后端没发
+2. 前端消息对象
+   - 有 `artifact`，但 `assistantMessage.artifacts` 里没有：前端消费逻辑有问题
+3. Vue 模板
+   - `assistantMessage.artifacts` 有值，但 UI 没显示：组件渲染逻辑有问题
+
+### 1.3 前端怎么直接看当前消息对象
+
+本轮实现后，建议保留一段非常明确的开发期调试代码或注释，方便你以后临时打开。例如在 `WorkspacePage.vue` 的 SSE 接收位置附近可以临时加：
+
+```ts
+console.log("[artifact event]", payload)
+console.log("[assistant message after artifact]", structuredClone(assistantMessage))
+```
+
+重点看：
+
+- `assistantMessage.content`
+- `assistantMessage.sources`
+- `assistantMessage.artifacts`
+
+如果 `artifacts` 数组里已经有：
+
+```ts
+{ kind: "weather_card", version: 1, data: { ... } }
+```
+
+但页面没卡片，那就不要再查后端，直接查：
+
+- `ChatMessageBubble.vue`
+- `WeatherArtifactCard.vue`
+- `DateArtifactCard.vue`
+
+### 1.4 前端怎么判断是实时渲染问题还是历史回放问题
+
+这个很关键，必须分开测。
+
+测试顺序：
+
+1. 新发一条 `深圳天气`
+2. 当场看卡片有没有显示
+3. 刷新页面
+4. 再看同一条历史消息有没有卡片
+
+结果判断：
+
+- 当场没有，刷新后也没有
+  说明 SSE 或后端 artifact 构造有问题
+- 当场有，刷新后没有
+  说明历史持久化或 `selectSession()` 映射有问题
+- 当场没有，刷新后反而有
+  说明实时 SSE 接收逻辑有问题，历史接口是好的
+- 两边都有
+  说明整条链路通了
+
 ### 2. 调试天气链路
 
 最小复现 query：
@@ -371,6 +515,58 @@ ChatService 在图执行完成后，按消息顺序把 artifacts 推给前端。
 5. SSE 是否发出 `artifact`
 6. 历史记录是否写入 `artifacts`
 
+推荐你以后固定用这几个 query 回归：
+
+- `天气`
+- `深圳天气`
+- `明天深圳天气`
+- `天津天气`
+
+每个 query 都按这张排查表查：
+
+1. 输入后有没有马上出现 assistant message 空壳
+2. SSE 里有没有 `web_search` 的 `status/progress`
+3. `artifact(weather_card)` 有没有到
+4. `weather_card.data.city` 对不对
+5. `forecastDate` 对不对
+6. `forecastItems` 有没有 3 条，或有没有明确缺失说明
+7. 文本摘要和卡片字段是不是一致
+
+### 2.1 天气问题定位表
+
+#### 情况 A：有天气文本，没天气卡
+
+优先排查：
+
+- `web_search_node` 有没有把 `weather_card` 写进状态
+- `ChatService` 有没有把 artifact push 到 SSE
+- `HistoryService` 有没有接收 artifact
+
+#### 情况 B：天气卡有了，但字段很少
+
+优先排查：
+
+- `WeatherExtractor` 是否没抽到字段
+- 卡片数据构造层是否把空值直接丢了
+- 前端组件是否把 `暂无` 字段过滤掉了
+
+#### 情况 C：今天的天气显示成昨天
+
+优先排查：
+
+- `WeatherExtractor._pick_matching_date`
+- `forecastDate`
+- `relativeDayLabel`
+- 卡片是不是拿错了历史数据
+
+#### 情况 D：未来 3 天全空
+
+优先排查：
+
+- 搜索摘要里是否本来就没有未来 3 天
+- extractor 是否只抽到了当天
+- 卡片是否正确显示“暂未提取到后续 3 天天气”
+
 ### 3. 调试日期链路
 
 最小复现 query：
@@ -387,6 +583,42 @@ ChatService 在图执行完成后，按消息顺序把 artifacts 推给前端。
 4. SSE 是否下发 `artifact`
 5. 历史记录是否保留 `date_card`
 
+推荐固定回归：
+
+- `今天几号`
+- `今天星期几`
+- `今天是几号`
+- `今天周几`
+
+预期永远应该是：
+
+- 不走联网天气搜索
+- 不依赖主模型
+- 有文本
+- 有 `date_card`
+- 刷新后仍存在
+
+### 3.1 日期问题定位表
+
+#### 情况 A：文本对，卡片没有
+
+说明本地 fast-path 是通的，但 artifact 构造或传输有问题。
+
+#### 情况 B：卡片有，文本不对
+
+说明文本模板和卡片构造拿的时间源不一致，要查：
+
+- `generate_node` 的本地时间函数
+- `date_card` 构造函数
+
+#### 情况 C：刷新后日期卡没了
+
+直接查历史：
+
+- `HistoryService.append_turn`
+- `/chat/history`
+- `selectSession()` 映射
+
 ### 4. 调试历史回放
 
 重点验证两件事：
@@ -399,6 +631,44 @@ ChatService 在图执行完成后，按消息顺序把 artifacts 推给前端。
 - `HistoryService.append_turn`
 - `/chat/history` 返回模型
 - 前端 `selectSession()` 的消息映射
+
+建议你后面直接去 `backend/data/chat_history.json` 看落盘原文。你要确认某条 assistant turn 里除了：
+
+- `content`
+- `sources`
+
+还应该有：
+
+- `artifacts`
+
+如果 JSON 里没有 `artifacts`，就不是前端问题。
+
+### 4.1 你自己看历史 JSON 时要重点看什么
+
+找到刚发完的那条 assistant 消息，检查：
+
+```json
+{
+  "role": "assistant",
+  "content": "深圳今天多云，20°C~26°C，南风3级。",
+  "sources": [...],
+  "artifacts": [
+    {
+      "kind": "weather_card",
+      "version": 1,
+      "data": {
+        "city": "深圳",
+        "forecastDate": "2026-05-17"
+      }
+    }
+  ]
+}
+```
+
+如果这里：
+
+- `content` 有，`artifacts` 没有：后端持久化没写进去
+- `artifacts` 有，但前端历史页没显示：前端历史映射或组件问题
 
 ### 5. 推荐测试清单
 
@@ -416,6 +686,48 @@ ChatService 在图执行完成后，按消息顺序把 artifacts 推给前端。
 - `ChatMessageBubble` 条件渲染测试
 - `WeatherArtifactCard` / `DateArtifactCard` 渲染测试
 - 历史回放测试
+
+### 5.1 建议你以后固定执行的命令
+
+后端：
+
+```bash
+PYTHONPATH=backend .venv/bin/pytest backend/tests/test_weather_extractor.py -q
+PYTHONPATH=backend .venv/bin/pytest backend/tests/test_web_search_node.py -q
+PYTHONPATH=backend .venv/bin/pytest backend/tests/test_generate_node.py -q
+PYTHONPATH=backend .venv/bin/pytest backend/tests/test_chat_stream_api.py -q
+```
+
+如果你改了历史记录：
+
+```bash
+PYTHONPATH=backend .venv/bin/pytest backend/tests/test_chat_stream_api.py -q
+```
+
+前端如果后面补了组件测试，建议固定跑：
+
+```bash
+npm test
+```
+
+或者只跑天气/日期相关测试。
+
+### 5.2 建议你加的临时调试日志位置
+
+后端建议临时打点位置：
+
+- `web_search_node`：构造 `weather_card` 前后
+- `generate_node`：构造 `date_card` 前后
+- `chat_service`：`push_artifact` 前
+- `history_service`：assistant turn 落盘前
+
+前端建议临时打点位置：
+
+- `useChatStream.ts`：收到 `artifact` 时
+- `WorkspacePage.vue`：把 artifact 挂到 `assistantMessage` 时
+- `ChatMessageBubble.vue`：进入 artifact 渲染分支时
+
+每次排障时，优先看“数据有没有到”，再看“页面为什么没画出来”。
 
 ## 风险与取舍
 
@@ -507,3 +819,16 @@ ChatService 在图执行完成后，按消息顺序把 artifacts 推给前端。
 10. 文档、调试说明与回归测试收尾
 
 这样可以保证每个 commit 都有清晰职责，并为后续切换专门天气 API 保留稳定的前端协议。
+
+## 代码注释约束
+
+本轮实现必须显式写出详细注释，尤其在以下地方：
+
+- 新增的 SSE `artifact` 协议
+- assistant message 上 `artifacts` 的实时接收和历史回放
+- 天气卡片字段为什么允许 `暂无`
+- 未来 3 天天气为什么有时只显示缺失说明
+- 日期文本与日期卡为什么必须共享同一个本地时间源
+- 调试日志建议保留在哪些位置，为什么这些位置最适合定位问题
+
+要求达到的效果是：你过一段时间再回来看，不需要重新推断“这段代码为什么这样写”，直接靠注释和文档就能顺着数据流查问题。
