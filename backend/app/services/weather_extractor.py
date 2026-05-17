@@ -6,6 +6,7 @@ import re
 from dataclasses import asdict, dataclass
 from datetime import date, timedelta
 from functools import lru_cache
+from urllib.parse import urlparse
 
 from app.models.domain import WebSearchHit
 
@@ -51,6 +52,20 @@ _WEATHER_LABELS = (
     "霾",
     "雪",
 )
+_TRUSTED_SOURCE_KEYWORDS = (
+    "中国天气网",
+    "weather.com.cn",
+    "中央气象台",
+    "nmc.cn",
+    "weather.cma.cn",
+    "和风天气",
+    "qweather",
+    "天气网",
+)
+_LOW_TRUST_SOURCE_KEYWORDS = (
+    "百科",
+    "baike",
+)
 
 
 @dataclass(frozen=True)
@@ -89,17 +104,21 @@ class WeatherExtractor:
         current_day = today or date.today()
         target_date = self._infer_target_date(query, current_day)
         city = self._infer_city(query, search_query)
+        candidates: list[tuple[int, WeatherReport]] = []
 
         for hit in results:
-            report = self._normalize_hit(
+            candidate = self._normalize_hit(
                 hit=hit,
                 city=city,
                 target_date=target_date,
                 today=current_day,
             )
-            if report is not None:
-                return report
-        return None
+            if candidate is not None:
+                candidates.append(candidate)
+
+        if not candidates:
+            return None
+        return max(candidates, key=lambda item: item[0])[1]
 
     def _normalize_hit(
         self,
@@ -108,15 +127,17 @@ class WeatherExtractor:
         city: str,
         target_date: date,
         today: date,
-    ) -> WeatherReport | None:
+    ) -> tuple[int, WeatherReport] | None:
         text = " ".join(part for part in (hit.title, hit.snippet, hit.published_at) if part)
         dates = self._extract_dates(text, today)
         forecast_date = target_date
+        has_explicit_target_date = False
         if dates:
             matched_date = self._pick_matching_date(dates, target_date)
             if matched_date is None:
                 return None
             forecast_date = matched_date
+            has_explicit_target_date = True
 
         condition = self._extract_condition(text)
         temp_low_c, temp_high_c, current_temp_c, feels_like_c = self._extract_temperatures(text)
@@ -125,7 +146,7 @@ class WeatherExtractor:
         if not condition and temp_low_c is None and temp_high_c is None and current_temp_c is None:
             return None
 
-        return WeatherReport(
+        report = WeatherReport(
             city=city,
             target_date=target_date,
             forecast_date=forecast_date,
@@ -139,6 +160,7 @@ class WeatherExtractor:
             source_name=hit.site_name or hit.title or "网页来源",
             source_url=hit.url,
         )
+        return self._score_candidate(hit=hit, report=report, has_explicit_target_date=has_explicit_target_date), report
 
     def _infer_city(self, query: str, search_query: str) -> str:
         for candidate in (search_query, query):
@@ -212,12 +234,45 @@ class WeatherExtractor:
             return None
 
     def _pick_matching_date(self, dates: list[date], target_date: date) -> date | None:
-        window_start = target_date - timedelta(days=1)
-        window_end = target_date + timedelta(days=1)
-        candidates = [candidate for candidate in dates if window_start <= candidate <= window_end]
-        if not candidates:
+        if target_date not in dates:
             return None
-        return min(candidates, key=lambda candidate: abs((candidate - target_date).days))
+        return target_date
+
+    def _score_candidate(
+        self,
+        *,
+        hit: WebSearchHit,
+        report: WeatherReport,
+        has_explicit_target_date: bool,
+    ) -> int:
+        score = 0
+        if has_explicit_target_date:
+            score += 4
+
+        if report.condition and report.condition != "天气信息待确认":
+            score += 2
+        if report.temp_low_c is not None and report.temp_high_c is not None:
+            score += 3
+        elif report.current_temp_c is not None:
+            score += 2
+        if report.feels_like_c is not None:
+            score += 1
+        if report.wind_text:
+            score += 1
+        if report.air_quality:
+            score += 1
+
+        source_text = " ".join(part for part in (hit.site_name, hit.title, hit.url) if part)
+        lowered_source = source_text.lower()
+        if any(keyword.lower() in lowered_source for keyword in _TRUSTED_SOURCE_KEYWORDS):
+            score += 4
+        if any(keyword.lower() in lowered_source for keyword in _LOW_TRUST_SOURCE_KEYWORDS):
+            score -= 4
+
+        hostname = urlparse(hit.url).netloc.lower()
+        if hostname.endswith(("weather.com.cn", "nmc.cn", "weather.cma.cn", "qweather.com")):
+            score += 2
+        return score
 
     def _extract_condition(self, text: str) -> str:
         best_label = ""
@@ -265,7 +320,10 @@ class WeatherExtractor:
         match = _WIND_PATTERN.search(text)
         if not match:
             return ""
-        return match.group(1)
+        wind_text = match.group(1).strip()
+        if wind_text == "风":
+            return ""
+        return wind_text
 
     def _extract_air_quality(self, text: str) -> str:
         match = _AIR_QUALITY_PATTERN.search(text)

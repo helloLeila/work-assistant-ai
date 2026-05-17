@@ -77,3 +77,75 @@ def test_personal_annual_leave_uses_structured_direct_answer(monkeypatch) -> Non
     assert "剩余年假" in result["final_answer"]
     assert "7 天" in result["final_answer"]
     assert "".join(streamer.tokens) == result["final_answer"]
+
+
+def test_current_date_question_uses_local_time_template(monkeypatch) -> None:
+    """今天几号这类问题应直接返回本地日期，不走最终 LLM。"""
+
+    async def fail_if_llm_is_used(**kwargs):
+        raise AssertionError("date response should not call stream_final_answer")
+
+    monkeypatch.setattr(generate_module, "stream_final_answer", fail_if_llm_is_used)
+    streamer = FakeStreamer()
+
+    result = asyncio.run(
+        generate_node(
+            {
+                "query": "今天几号",
+                "intent": "chitchat",
+            },
+            _runtime(streamer),
+        )
+    )
+
+    assert "2026年05月17日" in result["final_answer"]
+    assert "星期日" in result["final_answer"]
+    assert "".join(streamer.tokens) == result["final_answer"]
+
+
+def test_current_weekday_question_uses_local_time_template(monkeypatch) -> None:
+    """今天星期几这类问题应直接返回本地星期，不走最终 LLM。"""
+
+    async def fail_if_llm_is_used(**kwargs):
+        raise AssertionError("weekday response should not call stream_final_answer")
+
+    monkeypatch.setattr(generate_module, "stream_final_answer", fail_if_llm_is_used)
+    streamer = FakeStreamer()
+
+    result = asyncio.run(
+        generate_node(
+            {
+                "query": "今天星期几",
+                "intent": "chitchat",
+            },
+            _runtime(streamer),
+        )
+    )
+
+    assert "星期日" in result["final_answer"]
+    assert "2026年05月17日" in result["final_answer"]
+    assert "".join(streamer.tokens) == result["final_answer"]
+
+
+def test_current_date_question_emits_date_artifact(monkeypatch) -> None:
+    """今天几号应同时产出日期卡片 artifact。"""
+
+    async def fail_if_llm_is_used(**kwargs):
+        raise AssertionError("date response should not call stream_final_answer")
+
+    monkeypatch.setattr(generate_module, "stream_final_answer", fail_if_llm_is_used)
+    streamer = FakeStreamer()
+
+    result = asyncio.run(
+        generate_node(
+            {
+                "query": "今天几号",
+                "intent": "chitchat",
+            },
+            _runtime(streamer),
+        )
+    )
+
+    assert result["artifacts"][0]["kind"] == "date_card"
+    assert result["artifacts"][0]["data"]["title"] == "今天"
+    assert "2026年05月17日" in result["artifacts"][0]["data"]["date_text"]

@@ -74,8 +74,31 @@ SHORT_QUERY_FALLBACK_CHARS = 15
 UTILITY_CLASSIFIER_TIMEOUT_SECONDS = 1.5
 
 
+def _classify_local_datetime_query(query: str) -> IntentClassification | None:
+    """今天几号/星期几这类本地时间问题直接走 chitchat。"""
+    normalized = query.strip().lower()
+    if "今天" not in normalized:
+        return None
+
+    date_keywords = ("几号", "日期", "几月几号")
+    weekday_keywords = ("星期几", "周几", "礼拜几")
+    if not any(keyword in normalized for keyword in (*date_keywords, *weekday_keywords)):
+        return None
+
+    return IntentClassification(
+        intent="chitchat",
+        confidence=0.95,
+        candidate_intents=["chitchat", "web_research_write"],
+        reason="本地快速路径命中日期/星期问题",
+    )
+
+
 def _classify_by_local_keywords(query: str) -> IntentClassification | None:
     """用本地关键词处理明显意图，避免每轮都先等远端 LLM。"""
+    date_result = _classify_local_datetime_query(query)
+    if date_result is not None:
+        return date_result
+
     matches: list[tuple[str, list[str], list[str]]] = []
     for intent, keywords, fallbacks in KEYWORD_RULES:
         hit_words = [word for word in keywords if word.lower() in query.lower()]
@@ -169,7 +192,10 @@ async def classify_intent(query: str) -> IntentClassification:
             )
     else:
         lowered = query.lower()
-        if any(keyword in query for keyword in ["今天", "明天", "昨天", "最新", "最近", "2026", "趋势", "天气", "新闻", "查一下", "搜一下", "联网", "实时"]):
+        date_result = _classify_local_datetime_query(query)
+        if date_result is not None:
+            result = date_result
+        elif any(keyword in query for keyword in ["今天", "明天", "昨天", "最新", "最近", "2026", "趋势", "天气", "新闻", "查一下", "搜一下", "联网", "实时"]):
             result = IntentClassification(intent="web_research_write", confidence=0.8, candidate_intents=["web_research_write", "direct_write"], reason="命中了时效/联网类关键词")
         elif any(keyword in query for keyword in ["制度", "报销", "手册", "知识库", "规定"]) or "policy" in lowered:
             result = IntentClassification(intent="knowledge", confidence=0.82, candidate_intents=["knowledge", "travel"], reason="命中了制度类关键词")

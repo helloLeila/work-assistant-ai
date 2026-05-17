@@ -55,6 +55,25 @@ def test_extract_stale_weather_hit_returns_none() -> None:
     assert report is None
 
 
+def test_extract_previous_day_weather_for_today_query_returns_none() -> None:
+    extractor = WeatherExtractor()
+    hit = WebSearchHit(
+        title="天津天气预报",
+        url="https://weather.example.com/tianjin",
+        snippet="2026年05月16日天津天气预报：多云，温度:25/4°C，西南风3级。",
+        site_name="互联百科",
+    )
+
+    report = extractor.extract(
+        query="天津天气",
+        search_query="天津 天气",
+        results=[hit],
+        today=date(2026, 5, 17),
+    )
+
+    assert report is None
+
+
 def test_extract_weather_with_high_low_celsius_symbol() -> None:
     extractor = WeatherExtractor()
     hit = WebSearchHit(
@@ -120,3 +139,31 @@ def test_extract_weather_without_explicit_date_falls_back_to_target_date() -> No
     assert report.forecast_date == date(2026, 5, 17)
     assert report.temp_high_c == 31
     assert report.temp_low_c == 18
+
+
+def test_extract_prefers_richer_trusted_weather_source() -> None:
+    extractor = WeatherExtractor()
+    low_quality_hit = WebSearchHit(
+        title="天津天气 - 互联百科",
+        url="https://example.com/tianjin-weather",
+        snippet="2026年05月17日天津天气：多云，温度:25/4°C，风。",
+        site_name="互联百科",
+    )
+    trusted_hit = WebSearchHit(
+        title="天津天气预报",
+        url="https://www.weather.com.cn/weather/101030100.shtml",
+        snippet="2026年05月17日天津天气预报：多云，温度:25/4°C，西南风3级，空气质量为良。",
+        site_name="中国天气网",
+    )
+
+    report = extractor.extract(
+        query="天津天气",
+        search_query="天津 天气",
+        results=[low_quality_hit, trusted_hit],
+        today=date(2026, 5, 17),
+    )
+
+    assert report is not None
+    assert report.source_name == "中国天气网"
+    assert report.wind_text == "西南风3级"
+    assert report.air_quality == "良"

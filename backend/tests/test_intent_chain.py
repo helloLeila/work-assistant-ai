@@ -51,6 +51,20 @@ def test_identity_question_uses_chitchat_fast_path(monkeypatch) -> None:
         assert "本地快速" in result.reason
 
 
+def test_current_date_question_uses_chitchat_fast_path(monkeypatch) -> None:
+    """今天几号/星期几这类本地时间问题不应误走联网搜索。"""
+
+    def fail_if_llm_is_used(*args, **kwargs):
+        raise AssertionError("date question should not initialize the LLM")
+
+    monkeypatch.setattr(intent_chain, "get_utility_chat_model", fail_if_llm_is_used)
+
+    for query in ("今天几号", "今天是几号", "今天星期几", "今天周几"):
+        result = asyncio.run(intent_chain.classify_intent(query))
+        assert result.intent == "chitchat", query
+        assert "本地快速" in result.reason
+
+
 def test_short_query_falls_back_to_chitchat(monkeypatch) -> None:
     """≤15 字 + 无业务关键词的零碎短文本(在吗/嗯/ok)默认 chitchat,不调 LLM。"""
 

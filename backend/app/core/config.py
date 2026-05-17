@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8000
     api_prefix: str = "/api"
+    app_timezone: str = "Asia/Shanghai"
     frontend_url: str = "http://localhost:5173"
     public_api_base_url: str = "http://localhost:8000/api"
     cors_origins: list[str] = Field(

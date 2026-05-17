@@ -48,7 +48,7 @@ def test_weather_query_with_ip_uses_augmented_city_search(monkeypatch) -> None:
                     WebSearchHit(
                         title="深圳天气预报",
                         url="https://weather.example.com/shenzhen",
-                        snippet="2026年05月16日深圳天气预报：多云，温度:26/20°C，南风3级，空气质量优。",
+                        snippet="2026年05月17日深圳天气预报：多云，温度:26/20°C，南风3级，空气质量优。",
                         site_name="天气网",
                     )
                 ],
@@ -70,9 +70,14 @@ def test_weather_query_with_ip_uses_augmented_city_search(monkeypatch) -> None:
     assert captured["query"] == "深圳 天气"
     assert captured["freshness"] == "oneDay"
     assert result["structured_data"]["weather_report"]["city"] == "深圳"
-    assert result["structured_data"]["weather_report"]["forecast_date"] == "2026-05-16"
+    assert result["structured_data"]["weather_report"]["forecast_date"] == "2026-05-17"
     assert "深圳" in result["structured_data"]["message"]
+    assert "今天" in result["structured_data"]["message"]
+    assert "2026年05月17日" in result["structured_data"]["message"]
+    assert "星期日" in result["structured_data"]["message"]
     assert "多云" in result["structured_data"]["message"]
+    assert "最低气温 20°C" in result["structured_data"]["message"]
+    assert "最高气温 26°C" in result["structured_data"]["message"]
     assert "南风3级" in result["structured_data"]["message"]
     assert "空气质量优" in result["structured_data"]["message"]
 
