@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "test-backend",
+      "type": "shell",
+      "command": "make test-backend",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "test-frontend",
+      "type": "shell",
+      "command": "make test-frontend",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "dev-backend",
+      "type": "shell",
+      "command": "make dev-backend",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "dev-frontend",
+      "type": "shell",
+      "command": "make dev-frontend",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

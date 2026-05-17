@@ -15,9 +15,32 @@ kill-backend:
 	@pkill -9 -f 'uvicorn app.main:app' 2>/dev/null || true
 	@echo "8000 端口已释放"
 
-# 运行后端测试
-test:
-	PYTHONPATH=backend pytest backend/tests -q
+# 运行后端测试总集
+test-backend:
+	PYTHONPATH=backend .venv/bin/pytest backend/tests -q
+
+# 兼容旧入口，默认等同于后端全量测试
+test: test-backend
+
+# 常用后端短命令，适合单文件/单模块快速回归
+test-weather:
+	PYTHONPATH=backend .venv/bin/pytest backend/tests/test_weather_extractor.py -q
+
+test-web-search:
+	PYTHONPATH=backend .venv/bin/pytest backend/tests/test_web_search_node.py -q
+
+test-generate:
+	PYTHONPATH=backend .venv/bin/pytest backend/tests/test_generate_node.py -q
+
+test-chat-stream:
+	PYTHONPATH=backend .venv/bin/pytest backend/tests/test_chat_stream_api.py -q
+
+test-history:
+	PYTHONPATH=backend .venv/bin/pytest backend/tests/test_history_service.py -q
+
+# 前端单测入口。后面只要改 Vue 卡片或 composable，就跑这个。
+test-frontend:
+	cd frontend && npm test
 
 # 安装前端依赖
 frontend-install:

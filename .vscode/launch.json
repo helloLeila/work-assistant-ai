@@ -1,0 +1,36 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Backend API",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--reload", "--app-dir", "backend"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.vscode/.env",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Debug Current Pytest File",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}", "-q"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.vscode/.env",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Debug Current Test",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}", "-q"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.vscode/.env",
+      "purpose": ["debug-test"],
+      "console": "integratedTerminal"
+    }
+  ]
+}
