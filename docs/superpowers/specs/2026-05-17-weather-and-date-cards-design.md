@@ -687,7 +687,50 @@ console.log("[assistant message after artifact]", structuredClone(assistantMessa
 - `WeatherArtifactCard` / `DateArtifactCard` 渲染测试
 - 历史回放测试
 
-### 5.1 建议你以后固定执行的命令
+### 5.1 项目必须提供短命令
+
+不要求开发者长期手写：
+
+```bash
+PYTHONPATH=backend .venv/bin/pytest backend/tests/test_weather_extractor.py -q
+```
+
+本轮实现要求项目级提供短命令，默认采用 `make`，让你在 VSCode 终端里直接执行。
+
+推荐短命令：
+
+```bash
+make test-weather
+make test-web-search
+make test-generate
+make test-chat-stream
+make test-history
+make test-backend
+```
+
+职责建议：
+
+- `make test-weather`
+  跑天气抽取与天气节点相关测试
+- `make test-web-search`
+  跑联网搜索节点相关测试
+- `make test-generate`
+  跑日期/固定模板/生成节点相关测试
+- `make test-chat-stream`
+  跑 SSE / 流式聊天接口相关测试
+- `make test-history`
+  跑历史持久化与历史回放相关测试
+- `make test-backend`
+  跑本轮改动覆盖的完整后端回归集合
+
+设计目标：
+
+- 你日常只记短命令
+- VSCode 的终端、任务、测试按钮都可以复用这些短命令
+- 计划文档里必须把这些命令写清楚
+- 后续文档里的调试步骤优先引用短命令，不再默认引用长命令
+
+### 5.2 建议你以后固定执行的命令
 
 后端：
 
@@ -712,7 +755,7 @@ npm test
 
 或者只跑天气/日期相关测试。
 
-### 5.2 建议你加的临时调试日志位置
+### 5.3 建议你加的临时调试日志位置
 
 后端建议临时打点位置：
 
