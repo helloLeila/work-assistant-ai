@@ -3,7 +3,9 @@ import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 
-import type { ChatMessage } from "../types";
+import DateArtifactCard from "./DateArtifactCard.vue";
+import WeatherArtifactCard from "./WeatherArtifactCard.vue";
+import type { ChatArtifact, ChatMessage } from "../types";
 
 const props = defineProps<{
   message: ChatMessage;
@@ -212,6 +214,16 @@ const htmlContent = computed(() => {
   }
   return renderMarkdown(props.message.content);
 });
+
+const artifacts = computed(() => props.message.artifacts ?? []);
+
+function isWeatherArtifact(artifact: ChatArtifact): artifact is Extract<ChatArtifact, { kind: "weather_card" }> {
+  return artifact.kind === "weather_card";
+}
+
+function isDateArtifact(artifact: ChatArtifact): artifact is Extract<ChatArtifact, { kind: "date_card" }> {
+  return artifact.kind === "date_card";
+}
 </script>
 
 <template>
@@ -353,6 +365,15 @@ const htmlContent = computed(() => {
         <div v-if="message.content" class="bubble__body" v-html="htmlContent" />
       </slot>
 
+      <div v-if="artifacts.length" class="bubble__artifacts">
+        <component
+          :is="isWeatherArtifact(artifact) ? WeatherArtifactCard : DateArtifactCard"
+          v-for="artifact in artifacts"
+          :key="`${artifact.kind}-${artifact.version}`"
+          :artifact="artifact"
+        />
+      </div>
+
       <!--
         打字光标：在助手气泡的"思考结束 → 流仍未 done"窗口期闪烁，
         让用户明确感知"还在出字"，避免文字稳定后误以为已结束。
@@ -482,6 +503,13 @@ const htmlContent = computed(() => {
 
 .bubble__body {
   word-wrap: break-word;
+}
+
+.bubble__artifacts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
 }
 
 .bubble__plain {
