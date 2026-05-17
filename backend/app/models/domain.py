@@ -77,6 +77,8 @@ class ChatTurn(BaseModel):
     content: str
     created_at: str
     sources: list[SourceCitation] = Field(default_factory=list)
+    # artifact 保持为原始 dict，便于 SSE / 历史 / 前端三端共享同一份 JSON 结构。
+    artifacts: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class HistorySession(BaseModel):

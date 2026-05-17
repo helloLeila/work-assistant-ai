@@ -36,6 +36,7 @@ class HistoryService:
         role: str,
         content: str,
         sources: list[dict[str, object]] | None = None,
+        artifacts: list[dict[str, object]] | None = None,
     ) -> None:
         """追加消息。"""
         payload = self._load_all()
@@ -61,6 +62,7 @@ class HistoryService:
                 content=content,
                 created_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
                 sources=[SourceCitation.model_validate(item) for item in (sources or [])],
+                artifacts=list(artifacts or []),
             ).model_dump()
         )
         self._save_all(payload)
