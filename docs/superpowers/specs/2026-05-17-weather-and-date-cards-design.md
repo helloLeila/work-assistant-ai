@@ -772,6 +772,127 @@ npm test
 
 每次排障时，优先看“数据有没有到”，再看“页面为什么没画出来”。
 
+### 5.4 VSCode 调试配置必须一并补齐
+
+你当前主要在 VSCode 开发，所以本轮实现不只提供代码和测试，还必须提供一套可直接使用的 VSCode 调试配置，避免你每次手动拼命令。
+
+必须包含：
+
+- `.vscode/settings.json`
+- `.vscode/launch.json`
+- `.vscode/tasks.json`
+- `.vscode/.env`
+
+职责要求：
+
+#### `.vscode/settings.json`
+
+至少要完成：
+
+- 启用 `pytest`
+- 指向 `backend/tests`
+- 默认使用项目虚拟环境
+- 让 Python 扩展读取 `.vscode/.env`
+
+目标效果：
+
+- VSCode Testing 面板能直接发现后端测试
+- 你可以在测试文件旁边直接点 `Run Test / Debug Test`
+
+#### `.vscode/.env`
+
+至少包含：
+
+```bash
+PYTHONPATH=backend
+```
+
+目的：
+
+- 不再要求你手写 `PYTHONPATH=backend`
+- 测试和断点调试都自动带上正确导入路径
+
+约束：
+
+- 这里不放任何 secrets
+- 这里只放本地调试所需的非敏感变量
+
+#### `.vscode/launch.json`
+
+至少提供这些调试入口：
+
+1. `Debug Backend API`
+   - 启动 `uvicorn`
+   - 用于调 `/api/chat/stream`、历史接口、SSE
+2. `Debug Current Pytest File`
+   - 调当前测试文件
+3. `Debug Current Test`
+   - 调单个测试函数
+
+目标效果：
+
+- 你改天气抽取时，可以直接 debug `test_weather_extractor.py`
+- 你改聊天流时，可以直接 debug `test_chat_stream_api.py`
+- 你查接口链路时，可以直接断在 `chat.py / chat_service.py / web_search_node.py`
+
+#### `.vscode/tasks.json`
+
+至少提供这些短任务：
+
+- `make dev-backend`
+- `make test-weather`
+- `make test-web-search`
+- `make test-generate`
+- `make test-chat-stream`
+- `make test-history`
+- `make test-backend`
+
+目标效果：
+
+- 你在 VSCode 里可以直接 `Run Task`
+- 不需要记终端长命令
+- 文档里的调试步骤可以直接引用 VSCode Task 名称
+
+### 5.5 还必须补的测试和契约约束
+
+除了前面已经写的常规测试，这轮还有 3 个容易漏掉但必须补的点。
+
+#### A. artifact 前后端契约测试
+
+必须验证：
+
+- 后端发出的 `artifact.kind`
+- `artifact.version`
+- `artifact.data` 结构
+
+和前端 TypeScript 类型一致。
+
+目标：
+
+- 避免后端多改一个字段名，前端静默失效
+
+#### B. 历史回放兼容测试
+
+必须覆盖：
+
+- 新消息：有 `artifacts`
+- 旧消息：没有 `artifacts`
+
+目标：
+
+- 旧历史不能因为新字段上线而渲染报错
+- 新历史刷新后必须恢复卡片
+
+#### C. SSE 到 UI 的烟雾回归
+
+必须有至少一条端到端式回归，验证：
+
+1. SSE 收到 `artifact`
+2. 前端把 artifact 挂到当前 assistant message
+3. 消息组件进入 artifact 渲染分支
+
+哪怕首版只是组件级或集成级测试，也必须覆盖这条链路。
+
 ## 风险与取舍
 
 ### 1. Bocha 不是专门天气源
@@ -807,6 +928,19 @@ npm test
 - 这轮工作量可控
 - 后续如果更多结构化卡片出现，再单独做 block 化重构
 
+### 4. VSCode 配置属于工作区文件
+
+风险：
+
+- 团队成员可能对 `.vscode` 是否入库有不同偏好
+
+取舍：
+
+- 本轮优先满足当前开发效率
+- 提交的 `.vscode` 文件只放非敏感调试配置
+- 不放 token、key、个人路径
+- 如果后面团队决定不入库，再单独调整策略，但本轮先把可用配置交付出来
+
 ## 影响范围
 
 后端：
@@ -830,6 +964,14 @@ npm test
 - 新增天气/日期卡片组件
 - 相关测试
 
+工程与调试配置：
+
+- `.vscode/settings.json`
+- `.vscode/launch.json`
+- `.vscode/tasks.json`
+- `.vscode/.env`
+- 根 `Makefile`
+
 文档：
 
 - 本设计文档
@@ -845,6 +987,8 @@ npm test
 5. SSE Response 中能看到 `artifact` 事件
 6. 旧历史消息在无 artifact 情况下仍正常显示
 7. `Debug Playbook` 可按步骤区分是 SSE、后端、历史还是前端问题
+8. VSCode 中可以直接点击 `Debug Test` 调试单测
+9. VSCode 中可以直接运行后端调试配置和短任务
 
 ## 实现约束
 
