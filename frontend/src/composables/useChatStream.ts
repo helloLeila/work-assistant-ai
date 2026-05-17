@@ -1,6 +1,6 @@
 import { getApiBaseUrl } from "../lib/api";
 import { sessionState } from "../stores/session";
-import type { SourceFile } from "../types";
+import type { ChatArtifact, SourceFile } from "../types";
 
 type StreamHandlers = {
   onToken: (token: string) => void;
@@ -17,6 +17,7 @@ type StreamHandlers = {
     detail: string,
   ) => void;
   onSources: (sources: SourceFile[]) => void;
+  onArtifact?: (artifact: ChatArtifact) => void;
   onDone: () => void;
   onError: (message: string) => void;
 };
@@ -46,6 +47,7 @@ export function openChatStream(
       content?: string;
       files?: SourceFile[];
       message?: string;
+      artifact?: ChatArtifact;
       step?: string;
       label?: string;
       state?: "running" | "done";
@@ -92,6 +94,13 @@ export function openChatStream(
 
     if (payload.type === "source") {
       handlers.onSources(payload.files ?? []);
+      return;
+    }
+
+    if (payload.type === "artifact") {
+      if (payload.artifact) {
+        handlers.onArtifact?.(payload.artifact);
+      }
       return;
     }
 

@@ -14,6 +14,63 @@ export interface SourceFile {
   snippet: string;
 }
 
+export interface WeatherForecastItem {
+  date: string;
+  weekday_label: string;
+  relative_day_label: string;
+  condition: string;
+  temp_low_c?: number | null;
+  temp_high_c?: number | null;
+}
+
+export interface ArtifactCompleteness {
+  has_current: boolean;
+  has_forecast: boolean;
+  missing_fields: string[];
+}
+
+export interface WeatherArtifactData {
+  city: string;
+  relative_day_label: string;
+  forecast_date: string;
+  weekday_label: string;
+  summary: string;
+  current_temp_c?: number | null;
+  temp_low_c?: number | null;
+  temp_high_c?: number | null;
+  feels_like_c?: number | null;
+  wind_text?: string;
+  air_quality?: string;
+  humidity?: string;
+  precipitation?: string;
+  uv_index?: string;
+  source_name: string;
+  source_url?: string;
+  forecast_items?: WeatherForecastItem[];
+  completeness?: ArtifactCompleteness;
+}
+
+export interface DateArtifactData {
+  title: string;
+  date_text: string;
+  weekday_label: string;
+  timezone: string;
+}
+
+export interface WeatherArtifact {
+  kind: "weather_card";
+  version: number;
+  data: WeatherArtifactData;
+}
+
+export interface DateArtifact {
+  kind: "date_card";
+  version: number;
+  data: DateArtifactData;
+}
+
+export type ChatArtifact = WeatherArtifact | DateArtifact;
+
 /** LangGraph 节点级进度。后端每进入/离开一个节点都 push 一次，
  * 前端把它们累计成可视化的"步骤列表"——比如：
  *   ⟳ 检索知识库...
@@ -47,6 +104,7 @@ export interface ChatMessage {
   renderedContent?: string;
   createdAt: string;
   sources?: SourceFile[];
+  artifacts?: ChatArtifact[];
   /** 累积的"思考过程"原文（豆包风格折叠块的内容来源）。 */
   thinking?: string;
   /** 流式期间展示的轻量 thinking 摘录，只保留尾部窗口，避免长文本持续重绘。 */
@@ -101,6 +159,7 @@ export interface HistoryTurn {
   content: string;
   created_at: string;
   sources: SourceFile[];
+  artifacts: ChatArtifact[];
 }
 
 export interface HistorySession {
