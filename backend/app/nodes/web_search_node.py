@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 from app.core.config import get_settings
+from app.models.artifacts import ArtifactCompleteness, WeatherArtifact, WeatherArtifactData
 from app.models.domain import WebSearchResult
 from app.services.ip_location_service import contains_city_name, get_ip_location_service, is_weather_query
 from app.services.weather_extractor import get_weather_extractor
@@ -17,17 +21,46 @@ def _build_weather_unavailable_message(search_query: str) -> str:
     return f"我暂时没查到「{search_query}」的可信的最新天气数据。你可以稍后重试，或告诉我更具体的日期。"
 
 
+def _get_local_today():
+    settings = get_settings()
+    timezone_name = settings.app_timezone.strip() or "Asia/Shanghai"
+    try:
+        timezone = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        return datetime.now().astimezone().date()
+    return datetime.now(timezone).date()
+
+
+def _format_weekday_label(value) -> str:
+    weekday_labels = ("星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日")
+    return weekday_labels[value.weekday()]
+
+
+def _format_relative_weather_day(report) -> str:
+    delta_days = (report.forecast_date - _get_local_today()).days
+    if delta_days == 0:
+        return "今天"
+    if delta_days == 1:
+        return "明天"
+    if delta_days == 2:
+        return "后天"
+    if delta_days == -1:
+        return "昨天"
+    return report.forecast_date.strftime("%Y年%m月%d日")
+
+
 def _build_weather_message(report) -> str:
     details: list[str] = []
     if report.condition:
         details.append(report.condition)
     if report.temp_low_c is not None and report.temp_high_c is not None:
         if report.temp_low_c == report.temp_high_c:
-            details.append(f"{report.temp_high_c}°C")
+            details.append(f"气温 {report.temp_high_c}°C")
         else:
-            details.append(f"{report.temp_low_c}~{report.temp_high_c}°C")
+            details.append(f"最低气温 {report.temp_low_c}°C")
+            details.append(f"最高气温 {report.temp_high_c}°C")
     elif report.current_temp_c is not None:
-        details.append(f"当前 {report.current_temp_c}°C")
+        details.append(f"当前气温 {report.current_temp_c}°C")
     if report.feels_like_c is not None:
         details.append(f"体感 {report.feels_like_c}°C")
     if report.wind_text:
@@ -36,7 +69,55 @@ def _build_weather_message(report) -> str:
         details.append(f"空气质量{report.air_quality}")
 
     body = "，".join(details) if details else "天气信息待确认"
-    return f"{report.city} {report.forecast_date.isoformat()} 天气：{body}。来源：{report.source_name}。"
+    relative_day = _format_relative_weather_day(report)
+    date_text = report.forecast_date.strftime("%Y年%m月%d日")
+    weekday_text = _format_weekday_label(report.forecast_date)
+    return f"{report.city}{relative_day}（{date_text}，{weekday_text}）天气：{body}。来源：{report.source_name}。"
+
+
+def _build_weather_artifact(report) -> dict[str, object]:
+    """把归一化天气结果转成前端可直接渲染的 artifact。"""
+    temp_low_c = report.temp_low_c
+    temp_high_c = report.temp_high_c
+    if temp_low_c is None and temp_high_c is None and report.current_temp_c is not None:
+        temp_low_c = report.current_temp_c
+        temp_high_c = report.current_temp_c
+
+    completeness = ArtifactCompleteness(
+        has_current=report.current_temp_c is not None,
+        has_forecast=True,
+        missing_fields=[
+            field
+            for field, value in (
+                ("current_temp_c", report.current_temp_c),
+                ("temp_low_c", temp_low_c),
+                ("temp_high_c", temp_high_c),
+                ("feels_like_c", report.feels_like_c),
+                ("wind_text", report.wind_text),
+                ("air_quality", report.air_quality),
+            )
+            if value in (None, "")
+        ],
+    )
+    artifact = WeatherArtifact(
+        data=WeatherArtifactData(
+            city=report.city,
+            relative_day_label=_format_relative_weather_day(report),
+            forecast_date=report.forecast_date.isoformat(),
+            weekday_label=_format_weekday_label(report.forecast_date),
+            summary=report.condition,
+            current_temp_c=report.current_temp_c,
+            temp_low_c=temp_low_c,
+            temp_high_c=temp_high_c,
+            feels_like_c=report.feels_like_c,
+            wind_text=report.wind_text,
+            air_quality=report.air_quality,
+            source_name=report.source_name,
+            source_url=report.source_url,
+            completeness=completeness,
+        )
+    )
+    return artifact.model_dump()
 
 
 def _build_web_sources(result: WebSearchResult) -> list[dict[str, object]]:
@@ -136,6 +217,7 @@ async def web_search_node(state: dict) -> dict:
                 "message": _build_weather_message(report),
                 "weather_report": report.to_dict(),
             },
+            "artifacts": [_build_weather_artifact(report)],
             "sources": sources,
         }
 

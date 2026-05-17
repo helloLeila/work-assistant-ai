@@ -42,6 +42,7 @@ class GraphState(TypedDict, total=False):
     retrieved_docs: list[dict[str, Any]]
     draft_answer: str
     structured_data: dict[str, Any]
+    artifacts: list[dict[str, Any]]
     travel_info: dict[str, Any]
     # 写作类长请求由 planner_node 产出的段落大纲，generate_node 会读这个字段决定是否分段展开。
     # 字段为空字符串或缺失都视为'无大纲'，generate 走原逻辑。

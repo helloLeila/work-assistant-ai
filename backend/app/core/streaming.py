@@ -76,6 +76,10 @@ class SSEStreamer:
     async def push_sources(self, files: list[dict[str, Any]]) -> None:
         await self._queue.put(StreamEvent(type="source", payload={"files": files}))
 
+    async def push_artifact(self, artifact: dict[str, Any]) -> None:
+        """推送结构化 artifact，供前端渲染天气/日期卡片。"""
+        await self._queue.put(StreamEvent(type="artifact", payload={"artifact": artifact}))
+
     async def push_error(self, message: str) -> None:
         await self._queue.put(StreamEvent(type="error", payload={"message": message}))
 

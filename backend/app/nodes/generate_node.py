@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from app.chains.response_chain import stream_final_answer
+from app.services.time_service import build_date_artifact, get_local_time_context
 
 
 FIXED_IDENTITY_KEYWORDS = (
@@ -16,6 +17,9 @@ FIXED_IDENTITY_KEYWORDS = (
     "怎么用",
     "帮助",
 )
+
+DATE_QUESTION_KEYWORDS = ("几号", "日期", "几月几号")
+WEEKDAY_QUESTION_KEYWORDS = ("星期几", "周几", "礼拜几")
 
 
 def _format_context_block(data: object) -> str:
@@ -33,13 +37,44 @@ async def _push_answer(streamer, answer: str) -> None:
         await streamer.push_token(character)
 
 
-def _fixed_chitchat_answer(query: str, intent: str) -> str | None:
+def _fixed_local_time_answer(query: str, intent: str) -> str | None:
+    """今天几号/星期几这类问题直接返回本地时间，不进入最终 LLM。"""
+    if intent != "chitchat":
+        return None
+
+    normalized = query.strip().lower()
+    if "今天" not in normalized:
+        return None
+
+    asks_date = any(keyword in normalized for keyword in DATE_QUESTION_KEYWORDS)
+    asks_weekday = any(keyword in normalized for keyword in WEEKDAY_QUESTION_KEYWORDS)
+    if not asks_date and not asks_weekday:
+        return None
+
+    context = get_local_time_context()
+    return f"今天是{context.date_text}，{context.weekday_label}。"
+
+
+def _fixed_local_time_response(query: str, intent: str) -> dict[str, Any] | None:
+    """今天几号/星期几这类问题返回文本 + 日期卡片。"""
+    answer = _fixed_local_time_answer(query, intent)
+    if answer is None:
+        return None
+    return {"answer": answer, "artifacts": [build_date_artifact().model_dump()]}
+
+
+def _fixed_chitchat_answer(query: str, intent: str) -> str | dict[str, Any] | None:
     """固定高频问答模板，避免身份/帮助类问题进入 LLM。"""
     if intent != "chitchat":
         return None
     normalized = query.strip().lower()
     if not normalized:
         return None
+
+    local_time_response = _fixed_local_time_response(query, intent)
+    if local_time_response is not None:
+        return local_time_response
+
     if any(keyword in normalized for keyword in FIXED_IDENTITY_KEYWORDS):
         return (
             "我是企业智能办公助手，可以帮你快速查询公司制度、薪酬、个人信息和剩余年假，"
@@ -141,6 +176,10 @@ async def generate_node(state: dict, runtime) -> dict:
         return {"final_answer": answer}
 
     fixed_answer = _fixed_chitchat_answer(state.get("query", ""), state.get("intent", ""))
+    if isinstance(fixed_answer, dict):
+        answer_text = str(fixed_answer["answer"])
+        await _push_answer(streamer, answer_text)
+        return {"final_answer": answer_text, "artifacts": list(fixed_answer.get("artifacts", []))}
     if fixed_answer is not None:
         await _push_answer(streamer, fixed_answer)
         return {"final_answer": fixed_answer}

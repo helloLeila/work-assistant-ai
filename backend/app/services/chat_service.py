@@ -75,6 +75,11 @@ class ChatService:
             if sources:
                 await streamer.push_sources(sources)
 
+            artifacts = state.get("artifacts", [])
+            if artifacts:
+                for artifact in artifacts:
+                    await streamer.push_artifact(artifact)
+
             self._history.append_turn(
                 user_id=current_user.user_id,
                 session_id=session_id,
@@ -82,6 +87,7 @@ class ChatService:
                 role="assistant",
                 content=state.get("final_answer", ""),
                 sources=sources,
+                artifacts=artifacts,
             )
             await streamer.push_done()
         except Exception as exc:
