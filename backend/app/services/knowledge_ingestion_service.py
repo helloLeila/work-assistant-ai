@@ -16,6 +16,44 @@ from uuid import uuid4
 from app.core.config import get_settings
 from app.models.knowledge import DocumentMetadata, DocumentStatus, VisibilityScope
 
+import tiktoken
+
+
+def _get_tokenizer() -> tiktoken.Encoding | None:
+    """统一使用 tiktoken 的 cl100k_base 作为 token 计数器。
+
+    若首次下载失败（如测试环境无网），返回 None，由 count_tokens fallback。
+    """
+    try:
+        return tiktoken.get_encoding("cl100k_base")
+    except Exception:
+        return None
+
+
+_tokenizer_instance: tiktoken.Encoding | None = None
+
+
+def count_tokens(text: str) -> int:
+    """计算文本的 token 数。
+
+    首版统一 tiktoken；下载不可用时按中文字符 ~1.5 token/字估算，
+    保证切分流程不因 tokenizer 初始化失败而中断。
+    """
+    global _tokenizer_instance
+    if _tokenizer_instance is None:
+        _tokenizer_instance = _get_tokenizer()
+    if _tokenizer_instance is not None:
+        return len(_tokenizer_instance.encode(text))
+    # fallback：英文字符 0.3 token/字，中文字符 1.5 token/字
+    en_count = sum(1 for c in text if c.isascii())
+    cn_count = len(text) - en_count
+    return int(en_count * 0.3 + cn_count * 1.5)
+
+
+def compute_checksum(content: bytes) -> str:
+    """计算文件内容 checksum，用于去重与变更检测。"""
+    return hashlib.sha256(content).hexdigest()
+
 
 @dataclass
 class IngestionResult:
