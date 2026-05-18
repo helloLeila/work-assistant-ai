@@ -19,8 +19,51 @@
 
 from __future__ import annotations
 
+import re
+
 from app.core.config import get_settings
 from app.models.knowledge_retrieval import QueryRewriteResult
+
+
+# 停用词：礼貌词和虚词，不参与关键词提取
+_STOP_WORDS = {
+    "请", "请问", "谢谢", "您好", "你好", "麻烦", "帮忙", "能不能", "可以",
+    "一下", "的", "了", "在", "是", "我", "你", "他", "她", "它", "我们",
+    "你们", "他们", "这", "那", "什么", "怎么", "为什么", "如何", "哪些",
+    "哪里", "谁", "多少", "几", "个", "和", "与", "或", "以及", "关于",
+    "对于", "根据", "按照", "从", "到", "向", "为", "把", "被", "让",
+    "给", "对", "将", "比", "跟", "同",
+}
+
+
+def _extract_keywords(text: str, max_keywords: int = 5) -> list[str]:
+    """从文本中提取关键词。
+
+    提取规则：
+    1. 基于正则提取中文字符、英文单词和数字序列；
+    2. 过滤停用词（礼貌词和虚词）；
+    3. 过滤长度小于 2 的 token；
+    4. 按出现顺序去重，取前 max_keywords 个（默认 5 个）。
+
+    参数：
+    - text: 待提取关键词的文本，通常取自 rewritten_query；
+    - max_keywords: 关键词数量上限，对应 config 或默认值 5。
+
+    返回值：
+    keywords 列表，供 sparse 检索路径作为补充查询词使用。
+    下游 retrieval_pipeline 会把 keywords 与 dense query 一起送入 hybrid retrieval。
+    """
+    tokens = re.findall(r"[一-鿿A-Za-z0-9]{2,}", text)
+    filtered = [t for t in tokens if t.lower() not in _STOP_WORDS and t not in _STOP_WORDS]
+    seen: set[str] = set()
+    result: list[str] = []
+    for token in filtered:
+        if token not in seen:
+            seen.add(token)
+            result.append(token)
+        if len(result) >= max_keywords:
+            break
+    return result
 
 
 def _light_rewrite(query: str) -> str:
@@ -112,12 +155,17 @@ class QueryRewriteService:
             # 改写失败时回退原 query，保证检索链路不中断
             rewritten = original
 
+        # 关键词提取：优先从改写后文本提取，若为空则从原文提取
+        keywords = _extract_keywords(rewritten)
+        if not keywords:
+            keywords = _extract_keywords(original)
+
         strategy = "light_rewrite" if rewritten != original else "no_change"
 
         return QueryRewriteResult(
             original_query=original,
             rewritten_query=rewritten,
-            keywords=[],
+            keywords=keywords,
             strategy=strategy,
             retry_count=retry_count,
         )

@@ -68,3 +68,26 @@ class TestLightRewrite:
         result = service.rewrite("年假怎么休")
         assert result.rewritten_query == "年假怎么休"
         assert result.strategy == "no_change"
+
+
+class TestKeywordExtraction:
+    """测试关键词提取规范。"""
+
+    def test_extracts_keywords(self, service: QueryRewriteService) -> None:
+        """从改写后文本提取关键词。"""
+        result = service.rewrite("请问一下报销怎么做")
+        assert "报销" in result.keywords
+        assert "流程" in result.keywords
+
+    def test_limits_to_five_keywords(self, service: QueryRewriteService) -> None:
+        """关键词数量不超过 5 个。"""
+        result = service.rewrite("第一条 第二条 第三条 第四条 第五条 第六条")
+        assert len(result.keywords) <= 5
+
+    def test_filters_stop_words(self, service: QueryRewriteService) -> None:
+        """停用词和虚词不参与关键词提取。"""
+        result = service.rewrite("请问一下怎么报销")
+        # "请问"、"一下"、"怎么" 应为停用词
+        assert "请问" not in result.keywords
+        assert "一下" not in result.keywords
+        assert "怎么" not in result.keywords
