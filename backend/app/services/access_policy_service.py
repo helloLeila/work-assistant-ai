@@ -175,3 +175,63 @@ def chunk_should_be_visible(
             return True
         return chunk_meta.get("owner_user_id") == user.user_id
     return False
+
+
+# ===== 权限镜像同步接口 =====
+
+# 文档级权限字段变更时，关联 chunk 的镜像字段必须同步的字段列表
+SYNC_MIRROR_FIELDS = {
+    "visibility_scope",
+    "department",
+    "owner_user_id",
+    "status",
+    "version",
+    "is_latest",
+}
+
+
+def needs_chunk_sync(doc_meta: dict[str, Any], changed_fields: set[str]) -> bool:
+    """判断文档字段变更是否需要触发 chunk 镜像同步。
+
+    当 visibility_scope / department / owner_user_id / status / version / is_latest
+    任一字段变化时，所有关联 chunk 的镜像字段必须同步，否则检索侧过滤条件
+    与文档实际权限会产生不一致（窗口漏洞）。
+    """
+    return bool(changed_fields & SYNC_MIRROR_FIELDS)
+
+
+def compute_sync_batch_threshold() -> int:
+    """返回大批量更新的阈值。
+
+    超过此阈值的文档权限变更建议使用异步批处理，
+    并先将文档标记为 sync_pending 避免窗口漏洞。
+    """
+    return 50
+
+
+def mark_document_sync_pending(doc_meta: dict[str, Any]) -> dict[str, Any]:
+    """将文档标记为 sync_pending 状态。
+
+    sync_pending 文档默认不参与检索，避免出现"文档已不可见，chunk 还可搜到"的窗口漏洞。
+    系统论说明：这是权限变更事务中的中间态保护，小批量更新可内联同步完成后移除，
+    大批量更新应在异步任务完成后再清除标记。
+    """
+    doc_meta = dict(doc_meta)
+    doc_meta["status"] = DocumentStatus.SYNC_PENDING.value
+    return doc_meta
+
+
+def build_chunk_mirror_update(doc_meta: dict[str, Any]) -> dict[str, Any]:
+    """根据文档 metadata 生成 chunk 镜像字段更新字典。
+
+    返回的 dict 可直接用于更新关联 chunk 的 metadata，确保检索侧过滤一致性。
+    系统论说明：chunk 镜像字段必须与文档级字段保持最终一致，否则 ACL 过滤会失效。
+    """
+    return {
+        "status": doc_meta.get("status", DocumentStatus.ACTIVE.value),
+        "version": doc_meta.get("version", "v1.0"),
+        "is_latest": doc_meta.get("is_latest", True),
+        "visibility_scope": doc_meta.get("visibility_scope", VisibilityScope.DEPARTMENT.value),
+        "department": doc_meta.get("department", ""),
+        "owner_user_id": doc_meta.get("owner_user_id", ""),
+    }
