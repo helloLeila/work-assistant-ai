@@ -1,4 +1,12 @@
-"""Milvus 与本地检索回退封装。"""
+"""Milvus 与本地检索回退封装。
+
+系统论说明：
+- 本模块是整个企业 RAG 检索的向量存储入口；
+- 上游被 KnowledgeIngestionService._index_documents 调用写入索引；
+- 下游被 retrieval_pipeline 调用执行检索；
+- 必须保证 dense 主路径、sparse 补充路径、本地词法兜底路径三套链路复用同一套 ACL 过滤，
+  否则 Milvus 挂掉时本地回退会直接变成越权泄露通道。
+"""
 
 from __future__ import annotations
 
@@ -14,12 +22,20 @@ from langchain_milvus import Milvus
 
 from app.core.config import get_settings
 from app.core.llm import get_embeddings_model
+from app.models.knowledge import DocumentStatus, VisibilityScope
+from app.models.knowledge_retrieval import AccessPolicy
 
 TOKEN_PATTERN = re.compile(r"[\u4e00-\u9fffA-Za-z0-9]+")
 
 
 class KnowledgeVectorStore:
-    """优先使用 Milvus，失败时回退到本地检索。"""
+    """优先使用 Milvus dense 检索，失败时回退到本地词法检索。
+
+    系统论说明：
+    - 索引侧：接收 Document 列表，同时写入 Milvus 和本地内存/文件；
+    - 检索侧：先尝试 Milvus dense search，异常时回退到本地 _lexical_search；
+    - 过滤侧：search 方法接收统一 AccessPolicy，dense 和本地回退都必须执行同一套过滤。
+    """
 
     def __init__(self) -> None:
         self._settings = get_settings()
