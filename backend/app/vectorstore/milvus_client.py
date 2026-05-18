@@ -52,27 +52,44 @@ class KnowledgeVectorStore:
         self,
         query: str,
         *,
-        department: str | None = None,
-        doc_type: str | None = None,
+        access_policy: AccessPolicy | None = None,
+        history_lookup: bool = False,
         top_k: int | None = None,
     ) -> list[dict[str, Any]]:
-        """执行检索。"""
+        """执行检索。
+
+        系统论说明：
+        - 入口统一接收 AccessPolicy，避免各检索路径各自实现过滤逻辑；
+        - history_lookup=True 时放宽 is_latest 限制，允许命中 deprecated / 过期版本；
+        - dense 主路径异常时自动回退本地词法检索，回退路径也必须执行同一套 ACL。
+        """
         top_k = top_k or self._settings.knowledge_top_k
 
         if self._milvus is not None:
             try:
-                filter_parts = []
-                if department:
-                    filter_parts.append(f'department == "{department}"')
-                if doc_type:
-                    filter_parts.append(f'doc_type == "{doc_type}"')
-                expression = " and ".join(filter_parts) if filter_parts else None
+                expression = self._build_milvus_filter(access_policy, history_lookup=history_lookup)
                 docs = self._milvus.max_marginal_relevance_search(query, k=top_k, expr=expression)
                 return [self._to_search_result(doc, self._lexical_score(query, doc.page_content)) for doc in docs]
             except Exception:
                 pass
 
-        return self._lexical_search(query, department=department, doc_type=doc_type, top_k=top_k)
+        return self._lexical_search(query, access_policy=access_policy, history_lookup=history_lookup, top_k=top_k)
+
+    def _build_milvus_filter(self, access_policy: AccessPolicy | None, *, history_lookup: bool) -> str | None:
+        """构建 Milvus 过滤表达式。
+
+        系统论说明：
+        - 优先使用 AccessPolicy.milvus_filter（由 AccessPolicyResolver 统一生成）；
+        - 若未传入 policy，则使用本地默认规则：active + is_latest（history_lookup 时放宽）。
+        """
+        if access_policy is not None and access_policy.milvus_filter:
+            base = access_policy.milvus_filter
+        else:
+            parts = [f'status == "{DocumentStatus.ACTIVE.value}"']
+            if not history_lookup:
+                parts.append("is_latest == true")
+            base = " and ".join(parts)
+        return base
 
     def _try_build_milvus_index(self, documents: list[Document]) -> None:
         embeddings = get_embeddings_model()
