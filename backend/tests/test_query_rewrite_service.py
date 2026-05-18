@@ -18,6 +18,18 @@ from app.services.query_rewrite_service import QueryRewriteService
 
 
 @pytest.fixture
+def rewrite_result() -> QueryRewriteResult:
+    """提供测试用 QueryRewriteResult。"""
+    return QueryRewriteResult(
+        original_query="年假怎么休",
+        rewritten_query="年假 休假 流程",
+        keywords=["年假", "休假", "流程"],
+        strategy="light_rewrite",
+        retry_count=0,
+    )
+
+
+@pytest.fixture
 def service() -> QueryRewriteService:
     """提供隔离的 QueryRewriteService 实例。"""
     return QueryRewriteService()
@@ -120,3 +132,20 @@ class TestRewriteBlacklist:
         # "的"作为停用词被清洗后，"报销政策"作为整体被保留
         assert any("报销" in k for k in result.keywords)
         assert any("政策" in k for k in result.keywords)
+
+
+class TestShouldRetry:
+    """测试改写重试次数限制。"""
+
+    def test_allows_retry_when_recall_low(self, service: QueryRewriteService, rewrite_result: QueryRewriteResult) -> None:
+        """召回不足且未达重试上限时允许重试。"""
+        assert service.should_retry(rewrite_result, recall_count=3) is True
+
+    def test_denies_retry_when_max_reached(self, service: QueryRewriteService, rewrite_result: QueryRewriteResult) -> None:
+        """已达最大重试次数时不再允许重试。"""
+        rewrite_result.retry_count = 1
+        assert service.should_retry(rewrite_result, recall_count=3) is False
+
+    def test_denies_retry_when_recall_sufficient(self, service: QueryRewriteService, rewrite_result: QueryRewriteResult) -> None:
+        """召回充足时不触发重试。"""
+        assert service.should_retry(rewrite_result, recall_count=10) is False

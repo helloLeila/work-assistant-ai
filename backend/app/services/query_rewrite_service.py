@@ -221,11 +221,23 @@ class QueryRewriteService:
         """判断是否需要触发改写重试。
 
         重试规则：
-        - 仅当 retry_count == 0 时允许重试（最大 1 次）；
-        - 当 recall_count < self._settings.rewrite_recall_threshold（默认 5）时触发。
+        - 仅当 result.retry_count < self._settings.knowledge_rewrite_retry_max（默认 1）时允许重试；
+        - 当 recall_count < self._settings.knowledge_low_recall_threshold（默认 5）时触发。
+
+        参数：
+        - result: 上次 rewrite 的 QueryRewriteResult，其中 retry_count 记录已重试次数；
+        - recall_count: 实际召回的候选 chunk 数量，由 retrieval_pipeline 在首次检索后传入。
 
         返回值：
         True 表示允许重试，rag_chain 应使用更激进的改写策略再次检索；
-        False 表示已达重试上限，应进入后续 fallback（升档 / HyDE / 保守回答）。
+        False 表示已达重试上限或召回充足，应进入后续 fallback（升档 / HyDE / 保守回答）。
+
+        调用方：
+        rag_chain 在首次检索后若 recall_count 不足，调用本函数判断是否允许再次 rewrite。
         """
+        if result.retry_count >= self._settings.knowledge_rewrite_retry_max:
+            return False
+        threshold = getattr(self._settings, "knowledge_low_recall_threshold", 5)
+        if recall_count < threshold:
+            return True
         return False
