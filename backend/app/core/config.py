@@ -158,6 +158,23 @@ class Settings(BaseSettings):
     travel_api_timeout_seconds: float = 10.0
     travel_api_fallback_enabled: bool = True
 
+    # ===== 企业知识库 RAG 核心配置 =====
+    knowledge_chunk_size: int = 512
+    knowledge_chunk_overlap: int = 128
+    knowledge_rewrite_retry_max: int = 1
+    knowledge_rrf_rank_constant: int = 60
+    knowledge_rerank_top_k: int = 5
+    knowledge_rerank_input_max: int = 50
+    knowledge_rerank_input_high_recall_max: int = 80
+    knowledge_retrieval_profile: str = "standard"
+    knowledge_bias_mode: str = "balanced"
+    knowledge_low_recall_threshold: int = 5
+    knowledge_low_confidence_threshold: int = 3
+    knowledge_history_lookup_enabled: bool = True
+    retrieval_debug_trace_retention_days: int = 7
+    access_audit_log_retention_days: int = 180
+    user_behavior_log_retention_days: int = 30
+
     # ===== Bocha Web Search 配置 =====
     # 详见 openspec/changes/add-web-research-intent。
     # 留空 BOCHA_API_KEY 时,web_research_write 路径会自动降级到 direct_write,
