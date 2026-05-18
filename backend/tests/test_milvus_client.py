@@ -1,9 +1,8 @@
 """向量存储统一过滤测试。
 
-系统论说明：
-- 本测试锁定 Milvus dense 主路径与本地词法回退路径的 ACL 行为一致性；
-- 任何对 _build_milvus_filter 或 _document_passes_acl 的修改都必须在此验证，
-  防止本地回退变成越权通道。
+本测试锁定 Milvus dense 主路径与本地词法回退路径的 ACL 行为一致性。
+任何对 _build_milvus_filter 或 _document_passes_acl 的修改都必须在此验证，
+防止本地回退变成越权通道。
 """
 
 from __future__ import annotations
@@ -46,10 +45,16 @@ class TestBuildMilvusFilter:
         assert 'status == "active"' in expr
         assert "is_latest == true" in expr
 
+    def test_history_lookup_removes_is_latest(self, vectorstore: KnowledgeVectorStore) -> None:
+        """history_lookup=True 时放宽 is_latest 限制。"""
+        expr = vectorstore._build_milvus_filter(None, history_lookup=True)
+        assert "is_latest == true or is_latest == false" in expr
+
     def test_history_lookup_with_policy(self, vectorstore: KnowledgeVectorStore, sample_policy: AccessPolicy) -> None:
         """history_lookup=True 时保留 policy 其他条件，仅放宽 is_latest。"""
         expr = vectorstore._build_milvus_filter(sample_policy, history_lookup=True)
         assert 'status == "active"' in expr
+        assert "is_latest == true or is_latest == false" in expr
 
 
 class TestDocumentPassesAcl:
@@ -108,3 +113,13 @@ class TestDocumentPassesAcl:
         """默认过滤排除非最新版本。"""
         meta = {"status": DocumentStatus.ACTIVE.value, "is_latest": False}
         assert vectorstore._document_passes_acl(meta, None, history_lookup=False) is False
+
+    def test_history_lookup_deprecated_visible(self, vectorstore: KnowledgeVectorStore) -> None:
+        """history_lookup=True 时允许命中 deprecated 文档。"""
+        meta = {"status": DocumentStatus.DEPRECATED.value, "is_latest": True}
+        assert vectorstore._document_passes_acl(meta, None, history_lookup=True) is True
+
+    def test_history_lookup_non_latest_visible(self, vectorstore: KnowledgeVectorStore) -> None:
+        """history_lookup=True 时允许命中非最新版本。"""
+        meta = {"status": DocumentStatus.ACTIVE.value, "is_latest": False}
+        assert vectorstore._document_passes_acl(meta, None, history_lookup=True) is True

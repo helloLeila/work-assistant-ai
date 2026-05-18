@@ -138,10 +138,14 @@ class KnowledgeVectorStore:
         if access_policy is not None and access_policy.milvus_filter:
             base = access_policy.milvus_filter
         else:
-            parts = [f'status == "{DocumentStatus.ACTIVE.value}"']
-            if not history_lookup:
-                parts.append("is_latest == true")
+            parts = [f'status == "{DocumentStatus.ACTIVE.value}"', "is_latest == true"]
             base = " and ".join(parts)
+
+        if history_lookup:
+            # history_lookup 模式下把 is_latest 限制放宽为既允许 true 也允许 false，
+            # 从而命中历史版本和已作废文档，但保留其他 ACL 条件不变。
+            base = base.replace("is_latest == true", "is_latest == true or is_latest == false")
+
         return base
 
     def _try_build_milvus_index(self, documents: list[Document]) -> None:
