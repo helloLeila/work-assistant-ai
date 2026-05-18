@@ -25,6 +25,6 @@ describe("DateArtifactCard", () => {
     expect(wrapper.text()).toContain("今天");
     expect(wrapper.text()).toContain("2026年05月17日");
     expect(wrapper.text()).toContain("星期日");
-    expect(wrapper.text()).toContain("Asia/Shanghai");
+    expect(wrapper.text()).toContain("北京时间");
   });
 });

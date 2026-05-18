@@ -19,6 +19,46 @@ class ChatService:
         self._graph = get_office_assistant_graph()
         self._history = get_history_service()
 
+    def _build_graph_input_state(
+        self,
+        *,
+        session_id: str,
+        query: str,
+        current_user: CurrentUser,
+        client_ip: str | None,
+    ) -> dict[str, object]:
+        """为单轮请求构造干净的图输入状态。
+
+        LangGraph 在同一个 thread_id 下会复用 checkpoint 状态。
+        如果这里不显式覆盖上一轮产生的输出字段，天气卡片、来源、结构化结果等
+        就会泄漏到下一轮完全不相关的问题里。
+        """
+        return {
+            "session_id": session_id,
+            "query": query,
+            "current_user": current_user,
+            "client_ip": client_ip,
+            "intent": "",
+            "confidence": 0.0,
+            "candidate_intents": [],
+            "routing_reason": "",
+            "target_user_id": "",
+            "permission_allowed": False,
+            "deny_message": "",
+            "retrieved_docs": [],
+            "draft_answer": "",
+            "structured_data": {},
+            "artifacts": [],
+            "travel_info": {},
+            "outline": "",
+            "final_answer": "",
+            "sources": [],
+            "retry_count": 0,
+            "relevant": False,
+            "retrieval_score": 0.0,
+            "grounded": False,
+        }
+
     async def run_streaming_chat(
         self,
         *,
@@ -61,13 +101,12 @@ class ChatService:
                 return
 
             state = await self._graph.ainvoke(
-                {
-                    "session_id": session_id,
-                    "query": query,
-                    "current_user": current_user,
-                    "client_ip": client_ip,
-                    "retry_count": 0,
-                },
+                self._build_graph_input_state(
+                    session_id=session_id,
+                    query=query,
+                    current_user=current_user,
+                    client_ip=client_ip,
+                ),
                 {"configurable": {"thread_id": session_id}},
                 context=GraphRuntimeContext(current_user=current_user, streamer=streamer),
             )

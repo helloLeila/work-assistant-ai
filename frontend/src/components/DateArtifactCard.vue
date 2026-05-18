@@ -1,9 +1,18 @@
 <script setup lang="ts">
+import { computed } from "vue";
+
 import type { DateArtifact } from "../types";
 
-defineProps<{
+const props = defineProps<{
   artifact: DateArtifact;
 }>();
+
+const timezoneLabel = computed(() => {
+  if (props.artifact.data.timezone === "Asia/Shanghai") {
+    return "北京时间";
+  }
+  return "当地时间";
+});
 </script>
 
 <template>
@@ -25,7 +34,7 @@ defineProps<{
       </div>
     </div>
     <div class="date-card__footer">
-      <span class="date-card__timezone">{{ artifact.data.timezone }}</span>
+      <span class="date-card__timezone">{{ timezoneLabel }}</span>
     </div>
   </section>
 </template>

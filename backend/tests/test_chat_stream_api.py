@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.main import create_app
 from app.models.domain import WebSearchHit, WebSearchResult
+from app.services.time_service import get_local_time_context
 
 
 def _extract_token_text(body: str) -> str:
@@ -17,6 +18,13 @@ def _extract_token_text(body: str) -> str:
         if payload.get("type") == "token":
             parts.append(payload.get("content", ""))
     return "".join(parts)
+
+
+def _current_weather_snippet(city: str, extra: str = "") -> str:
+    context = get_local_time_context()
+    date_text = context.now.strftime("%Y年%m月%d日")
+    suffix = f"，{extra}" if extra else ""
+    return f"{date_text}{city}天气预报：多云，温度:26/20°C，南风3级{suffix}。"
 
 
 def test_chat_stream_returns_sse_events() -> None:
@@ -126,7 +134,7 @@ def test_chat_stream_weather_query_uses_ip_augmented_search_and_skips_llm(monkey
                     WebSearchHit(
                         title="深圳天气预报",
                         url="https://weather.example.com/shenzhen",
-                        snippet="2026年05月17日深圳天气预报：多云，温度:26/20°C，南风3级。",
+                        snippet=_current_weather_snippet("深圳"),
                         site_name="天气网",
                     )
                 ],
@@ -191,7 +199,7 @@ def test_chat_stream_weather_query_emits_artifact_event(monkeypatch) -> None:
                     WebSearchHit(
                         title="深圳天气预报",
                         url="https://weather.example.com/shenzhen",
-                        snippet="2026年05月17日深圳天气预报：多云，温度:26/20°C，南风3级，空气质量优。",
+                        snippet=_current_weather_snippet("深圳", "空气质量优"),
                         site_name="天气网",
                     )
                 ],
@@ -259,7 +267,7 @@ def test_chat_stream_current_date_question_returns_local_date(monkeypatch) -> No
 
     assert response.status_code == 200
     assert 'data: {"type":"error"' not in body
-    assert "2026年05月17日" in _extract_token_text(body)
+    assert get_local_time_context().date_text in _extract_token_text(body)
 
 
 def test_chat_stream_current_date_question_emits_date_artifact(monkeypatch) -> None:
@@ -292,4 +300,76 @@ def test_chat_stream_current_date_question_emits_date_artifact(monkeypatch) -> N
     assert response.status_code == 200
     assert 'data: {"type":"artifact"' in body
     assert '"kind":"date_card"' in body
-    assert '"weekday_label":"星期日"' in body
+    assert f'"weekday_label":"{get_local_time_context().weekday_label}"' in body
+
+
+def test_chat_stream_does_not_reuse_weather_artifact_from_previous_turn(monkeypatch) -> None:
+    """同一会话里上一轮天气卡片不应泄漏到下一轮普通回答。"""
+    import app.nodes.generate_node as generate_module
+    import app.nodes.web_search_node as web_search_module
+
+    class FakeIPLocationService:
+        async def lookup(self, ip: str) -> str | None:
+            return "深圳"
+
+    class FakeWebSearchService:
+        async def search(
+            self,
+            query: str,
+            *,
+            max_results: int | None = None,
+            freshness: str | None = None,
+        ) -> WebSearchResult:
+            return WebSearchResult(
+                query=query,
+                results=[
+                    WebSearchHit(
+                        title="深圳天气预报",
+                        url="https://weather.example.com/shenzhen",
+                        snippet=_current_weather_snippet("深圳", "空气质量优"),
+                        site_name="天气网",
+                    )
+                ],
+            )
+
+    async def fail_if_llm_is_used(**kwargs):
+        raise AssertionError("weather direct answer should not call stream_final_answer")
+
+    monkeypatch.setenv("BOCHA_API_KEY", "dummy-key")
+    monkeypatch.setattr(web_search_module, "get_ip_location_service", lambda: FakeIPLocationService())
+    monkeypatch.setattr(web_search_module, "get_web_search_service", lambda: FakeWebSearchService())
+    monkeypatch.setattr(generate_module, "stream_final_answer", fail_if_llm_is_used)
+
+    client = TestClient(create_app())
+    login_response = client.post(
+        "/api/auth/login",
+        json={"username": "li.wei", "password": "RuiRui123!"},
+    )
+    token = login_response.json()["access_token"]
+    session_id = "session-test-weather-leak"
+
+    with client.stream(
+        "GET",
+        "/api/chat/stream",
+        headers={"X-Forwarded-For": "8.8.8.8"},
+        params={
+            "session_id": session_id,
+            "query": "天气",
+            "access_token": token,
+        },
+    ) as response:
+        first_body = "".join(chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk for chunk in response.iter_text())
+
+    with client.stream(
+        "GET",
+        "/api/chat/stream",
+        params={
+            "session_id": session_id,
+            "query": "你好",
+            "access_token": token,
+        },
+    ) as response:
+        second_body = "".join(chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk for chunk in response.iter_text())
+
+    assert '"kind":"weather_card"' in first_body
+    assert '"kind":"weather_card"' not in second_body

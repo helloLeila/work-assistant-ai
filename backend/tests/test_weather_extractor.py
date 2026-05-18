@@ -167,3 +167,25 @@ def test_extract_prefers_richer_trusted_weather_source() -> None:
     assert report.source_name == "中国天气网"
     assert report.wind_text == "西南风3级"
     assert report.air_quality == "良"
+
+
+def test_extract_does_not_parse_wind_level_as_temperature_range() -> None:
+    extractor = WeatherExtractor()
+    hit = WebSearchHit(
+        title="上海天气预报",
+        url="https://example.com/shanghai-weather",
+        snippet="2026年05月18日上海天气：多云，东北风3-4级，空气质量良。",
+        site_name="今日头条",
+    )
+
+    report = extractor.extract(
+        query="上海天气",
+        search_query="上海 天气",
+        results=[hit],
+        today=date(2026, 5, 18),
+    )
+
+    assert report is not None
+    assert report.temp_low_c is None
+    assert report.temp_high_c is None
+    assert report.wind_text == "东北风3-4级"

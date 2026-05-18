@@ -15,8 +15,12 @@ _MONTH_DAY_SLASH_PATTERN = re.compile(r"(?<!\d)(\d{1,2})[/-](\d{1,2})(?!\d)")
 _MONTH_DAY_CN_PATTERN = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})日")
 _QUERY_EXPLICIT_DATE_PATTERN = re.compile(r"(20\d{2})?[年\-/\.]?\s*(\d{1,2})月?\s*(\d{1,2})日?")
 _TEMP_UNIT_PATTERN = r"(?:℃|°\s*[Cc]|[Cc])"
-_TEMP_RANGE_PATTERN = re.compile(
-    rf"(?:温度|气温)?[:：]?\s*(-?\d{{1,2}})\s*(?:{_TEMP_UNIT_PATTERN})?\s*(?:/|~|～|-|到)\s*(-?\d{{1,2}})\s*(?:{_TEMP_UNIT_PATTERN})?",
+_TEMP_RANGE_WITH_LABEL_PATTERN = re.compile(
+    rf"(?:温度|气温)[:：]?\s*(-?\d{{1,2}})\s*(?:{_TEMP_UNIT_PATTERN})?\s*(?:/|~|～|-|到)\s*(-?\d{{1,2}})\s*(?:{_TEMP_UNIT_PATTERN})?",
+    re.IGNORECASE,
+)
+_TEMP_RANGE_WITH_UNIT_PATTERN = re.compile(
+    rf"(-?\d{{1,2}})\s*(?:{_TEMP_UNIT_PATTERN})?\s*(?:/|~|～|-|到)\s*(-?\d{{1,2}})\s*(?:{_TEMP_UNIT_PATTERN})",
     re.IGNORECASE,
 )
 _HIGH_TEMP_PATTERN = re.compile(rf"最高温(?:度)?[:：]?\s*(-?\d{{1,2}})\s*(?:{_TEMP_UNIT_PATTERN})", re.IGNORECASE)
@@ -65,6 +69,8 @@ _TRUSTED_SOURCE_KEYWORDS = (
 _LOW_TRUST_SOURCE_KEYWORDS = (
     "百科",
     "baike",
+    "头条",
+    "toutiao",
 )
 
 
@@ -287,7 +293,14 @@ class WeatherExtractor:
         return best_label
 
     def _extract_temperatures(self, text: str) -> tuple[int | None, int | None, int | None, int | None]:
-        match = _TEMP_RANGE_PATTERN.search(text)
+        match = _TEMP_RANGE_WITH_LABEL_PATTERN.search(text)
+        if match:
+            first = int(match.group(1))
+            second = int(match.group(2))
+            feels_like_c = self._extract_single_number(_FEELS_LIKE_PATTERN, text)
+            return min(first, second), max(first, second), None, feels_like_c
+
+        match = _TEMP_RANGE_WITH_UNIT_PATTERN.search(text)
         if match:
             first = int(match.group(1))
             second = int(match.group(2))

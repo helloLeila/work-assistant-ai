@@ -6,6 +6,13 @@ import asyncio
 
 from app.models.domain import WebSearchHit, WebSearchResult
 from app.nodes.web_search_node import web_search_node
+from app.services.time_service import get_local_time_context
+
+
+def _current_weather_snippet(city: str) -> str:
+    context = get_local_time_context()
+    date_text = context.now.strftime("%Y年%m月%d日")
+    return f"{date_text}{city}天气预报：多云，温度:26/20°C，南风3级，空气质量优。"
 
 
 def test_weather_query_without_city_returns_clarifying_message() -> None:
@@ -48,7 +55,7 @@ def test_weather_query_with_ip_uses_augmented_city_search(monkeypatch) -> None:
                     WebSearchHit(
                         title="深圳天气预报",
                         url="https://weather.example.com/shenzhen",
-                        snippet="2026年05月17日深圳天气预报：多云，温度:26/20°C，南风3级，空气质量优。",
+                        snippet=_current_weather_snippet("深圳"),
                         site_name="天气网",
                     )
                 ],
@@ -70,11 +77,12 @@ def test_weather_query_with_ip_uses_augmented_city_search(monkeypatch) -> None:
     assert captured["query"] == "深圳 天气"
     assert captured["freshness"] == "oneDay"
     assert result["structured_data"]["weather_report"]["city"] == "深圳"
-    assert result["structured_data"]["weather_report"]["forecast_date"] == "2026-05-17"
+    context = get_local_time_context()
+    assert result["structured_data"]["weather_report"]["forecast_date"] == context.now.date().isoformat()
     assert "深圳" in result["structured_data"]["message"]
     assert "今天" in result["structured_data"]["message"]
-    assert "2026年05月17日" in result["structured_data"]["message"]
-    assert "星期日" in result["structured_data"]["message"]
+    assert context.date_text in result["structured_data"]["message"]
+    assert context.weekday_label in result["structured_data"]["message"]
     assert "多云" in result["structured_data"]["message"]
     assert "最低气温 20°C" in result["structured_data"]["message"]
     assert "最高气温 26°C" in result["structured_data"]["message"]
@@ -121,3 +129,42 @@ def test_weather_query_discards_stale_results(monkeypatch) -> None:
     )
 
     assert "可信的最新天气数据" in result["structured_data"]["message"]
+
+
+def test_weather_query_with_dali_city_name_does_not_require_ip(monkeypatch) -> None:
+    """大理这类城市名出现在 query 中时，应直接走天气搜索，不应追问城市。"""
+    import app.nodes.web_search_node as web_search_module
+
+    class FakeWebSearchService:
+        async def search(
+            self,
+            query: str,
+            *,
+            max_results: int | None = None,
+            freshness: str | None = None,
+        ) -> WebSearchResult:
+            return WebSearchResult(
+                query=query,
+                results=[
+                    WebSearchHit(
+                        title="大理天气预报",
+                        url="https://weather.example.com/dali",
+                        snippet="2026年05月18日大理天气预报：晴，温度:24/12°C，西风3级。",
+                        site_name="天气网",
+                    )
+                ],
+            )
+
+    monkeypatch.setenv("BOCHA_API_KEY", "dummy-key")
+    monkeypatch.setattr(web_search_module, "get_web_search_service", lambda: FakeWebSearchService())
+
+    result = asyncio.run(
+        web_search_node(
+            {
+                "query": "大理天气",
+            }
+        )
+    )
+
+    assert "weather_report" in result["structured_data"]
+    assert result["structured_data"]["weather_report"]["city"] == "大理"

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import app.nodes.generate_node as generate_module
 from app.nodes.generate_node import generate_node
+from app.services.time_service import get_local_time_context
 
 
 class FakeStreamer:
@@ -23,6 +24,11 @@ class FakeStreamer:
 
 def _runtime(streamer: FakeStreamer):
     return SimpleNamespace(context=SimpleNamespace(streamer=streamer))
+
+
+def _expected_local_date() -> tuple[str, str]:
+    context = get_local_time_context()
+    return context.date_text, context.weekday_label
 
 
 def test_identity_question_uses_direct_template(monkeypatch) -> None:
@@ -98,8 +104,9 @@ def test_current_date_question_uses_local_time_template(monkeypatch) -> None:
         )
     )
 
-    assert "2026年05月17日" in result["final_answer"]
-    assert "星期日" in result["final_answer"]
+    date_text, weekday_label = _expected_local_date()
+    assert date_text in result["final_answer"]
+    assert weekday_label in result["final_answer"]
     assert "".join(streamer.tokens) == result["final_answer"]
 
 
@@ -122,8 +129,9 @@ def test_current_weekday_question_uses_local_time_template(monkeypatch) -> None:
         )
     )
 
-    assert "星期日" in result["final_answer"]
-    assert "2026年05月17日" in result["final_answer"]
+    date_text, weekday_label = _expected_local_date()
+    assert weekday_label in result["final_answer"]
+    assert date_text in result["final_answer"]
     assert "".join(streamer.tokens) == result["final_answer"]
 
 
@@ -146,6 +154,7 @@ def test_current_date_question_emits_date_artifact(monkeypatch) -> None:
         )
     )
 
+    date_text, _ = _expected_local_date()
     assert result["artifacts"][0]["kind"] == "date_card"
     assert result["artifacts"][0]["data"]["title"] == "今天"
-    assert "2026年05月17日" in result["artifacts"][0]["data"]["date_text"]
+    assert date_text in result["artifacts"][0]["data"]["date_text"]
