@@ -113,6 +113,66 @@ class DocumentParser:
                 section_paths.append(None)
         return raw_documents, section_paths
 
+    def split(
+        self,
+        raw_documents: list[Any],
+        section_paths: list[str | None],
+        *,
+        doc_id: str,
+        file_path: Path,
+        department: str,
+        doc_type: str,
+        upload_time: str,
+        chunking_strategy: ChunkingStrategy | None = None,
+    ) -> list[Any]:
+        """按策略切分文档并写入 chunk 级 metadata。
+
+        系统论说明：
+        - 输入是 parse 产出的原始文档与标题路径；
+        - 输出是带完整 metadata 的 chunk 列表，可直接送入向量索引；
+        - section_path 采用"最近匹配"策略：遍历原始标题，取第一个出现在 chunk 中的标题；
+        - 如果没有任何标题命中，section_path 为空字符串，由引用层回退到 source_file + chunk_index。
+        """
+        from langchain_core.documents import Document
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+        strategy = chunking_strategy or self._resolver.resolve(doc_type)
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=strategy.chunk_size,
+            chunk_overlap=strategy.chunk_overlap,
+            length_function=count_tokens,
+        )
+        all_text = "\n\n".join(doc.page_content for doc in raw_documents)
+        split_texts = splitter.split_text(all_text)
+
+        documents: list[Any] = []
+        for index, chunk_text in enumerate(split_texts, start=1):
+            # 尽量回退 section_path：取原始文档中最近的标题
+            section_path = ""
+            for sp in section_paths:
+                if sp and sp in chunk_text:
+                    section_path = sp
+                    break
+            token_count = count_tokens(chunk_text)
+            documents.append(
+                Document(
+                    page_content=chunk_text,
+                    metadata={
+                        "doc_id": doc_id,
+                        "chunk_id": f"{doc_id}-chunk-{index}",
+                        "chunk_index": index,
+                        "source_file": file_path.name,
+                        "section_path": section_path,
+                        "page_num": index,
+                        "department": department,
+                        "upload_time": upload_time,
+                        "doc_type": doc_type,
+                        "token_count": token_count,
+                    },
+                )
+            )
+        return documents
+
 
 @dataclass
 class IngestionResult:
