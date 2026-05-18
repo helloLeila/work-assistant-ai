@@ -312,8 +312,23 @@ class KnowledgeIngestionService:
         )
 
     def retry_parse(self, doc_id: str) -> IngestionResult | None:
-        """对 parse_failed 的文档重试解析。"""
-        raise NotImplementedError
+        """对 parse_failed 的文档重试解析（不重新上传文件）。
+
+        系统论说明：
+        - 复用已保存的原始文件路径，无需用户重新上传；
+        - 重试成功后从 parse_failed 转为 active，并重建索引；
+        - 若再次失败，保持 parse_failed 状态，不覆盖为其他状态。
+        """
+        metadata_list = self._load_metadata_list()
+        raw = next((m for m in metadata_list if m.get("doc_id") == doc_id), None)
+        if raw is None:
+            return None
+        if raw.get("status") != DocumentStatus.PARSE_FAILED.value:
+            return None
+        file_path = Path(str(raw.get("storage_path", "")))
+        if not file_path.exists():
+            return None
+        return self._run_from_parse(doc_id, file_path, raw)
 
     def retry_index(self, doc_id: str) -> IngestionResult | None:
         """对 index_failed 的文档重试索引。"""
