@@ -55,6 +55,37 @@ def compute_checksum(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+# 默认 chunk 参数（设计文档硬性规定：512 tokens + 128 overlap）
+DEFAULT_CHUNK_SIZE = 512
+DEFAULT_CHUNK_OVERLAP = 128
+
+# 允许特化策略的文档类型范围（设计文档硬性规定）
+OVERRIDE_DOC_TYPES = {"合同", "协议", "表格", "流程表单", "审批模板", "通知", "公告"}
+
+
+@dataclass
+class ChunkingStrategy:
+    """切分策略。"""
+
+    chunk_size: int
+    chunk_overlap: int
+
+
+class ChunkingStrategyResolver:
+    """根据文档类型解析切分策略。
+
+    默认 512/128；仅在文档类型明确属于 OVERRIDE_DOC_TYPES 时才允许覆盖为 1024/256。
+    """
+
+    def resolve(self, doc_type: str, title: str = "") -> ChunkingStrategy:
+        """返回对应文档类型的切分策略。"""
+        normalized = (doc_type + title).lower()
+        if any(keyword in normalized for keyword in OVERRIDE_DOC_TYPES):
+            # 长条款/表格类文档允许更大上下文
+            return ChunkingStrategy(chunk_size=1024, chunk_overlap=256)
+        return ChunkingStrategy(chunk_size=DEFAULT_CHUNK_SIZE, chunk_overlap=DEFAULT_CHUNK_OVERLAP)
+
+
 @dataclass
 class IngestionResult:
     """接入结果。"""
