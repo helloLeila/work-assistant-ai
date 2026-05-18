@@ -86,6 +86,34 @@ class ChunkingStrategyResolver:
         return ChunkingStrategy(chunk_size=DEFAULT_CHUNK_SIZE, chunk_overlap=DEFAULT_CHUNK_OVERLAP)
 
 
+class DocumentParser:
+    """文档解析器，提取文本与标题层级。"""
+
+    def __init__(self) -> None:
+        self._resolver = ChunkingStrategyResolver()
+
+    def parse(self, file_path: Path, doc_type: str = "") -> tuple[list[Any], list[str | None]]:
+        """解析文档，返回 (documents, section_paths)。
+
+        section_paths 与 documents 一一对应，表示每页/每段的标题路径。
+        如果提取不到标题，对应位置为 None。
+        """
+        from langchain_community.document_loaders import UnstructuredFileLoader
+        from langchain_core.documents import Document
+
+        loader = UnstructuredFileLoader(str(file_path))
+        raw_documents = loader.load()
+        section_paths: list[str | None] = []
+        for doc in raw_documents:
+            # 简化处理：直接取 page_content 的第一行非空文本作为潜在标题
+            first_line = doc.page_content.strip().split("\n")[0].strip() if doc.page_content else ""
+            if first_line and len(first_line) < 80:
+                section_paths.append(first_line)
+            else:
+                section_paths.append(None)
+        return raw_documents, section_paths
+
+
 @dataclass
 class IngestionResult:
     """接入结果。"""
