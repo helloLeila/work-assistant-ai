@@ -13,6 +13,7 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.core.config import get_settings
+from app.services.metadata_migration_service import migrate_document_metadata, needs_migration
 from app.services.seed_data import SEED_DOCUMENTS
 from app.vectorstore.milvus_client import get_knowledge_vectorstore
 
@@ -26,8 +27,26 @@ class KnowledgeService:
         self._metadata_path.parent.mkdir(parents=True, exist_ok=True)
         if not self._metadata_path.exists():
             self._metadata_path.write_text("[]", encoding="utf-8")
+        self._migrate_metadata_if_needed()
         self._ensure_seed_documents()
         self.rebuild_index()
+
+    def _migrate_metadata_if_needed(self) -> None:
+        """启动时自动迁移旧 metadata。"""
+        raw_items = json.loads(self._metadata_path.read_text(encoding="utf-8"))
+        migrated = False
+        new_items: list[dict[str, object]] = []
+        for raw in raw_items:
+            if needs_migration(raw):
+                doc = migrate_document_metadata(raw)
+                new_items.append(doc.model_dump(mode="json"))
+                migrated = True
+            else:
+                new_items.append(raw)
+        if migrated:
+            self._metadata_path.write_text(
+                json.dumps(new_items, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
 
     def list_documents(self) -> list[dict[str, object]]:
         """返回文档清单。"""
@@ -75,7 +94,10 @@ class KnowledgeService:
         """重建索引。"""
         documents: list[Document] = []
         for item in self.list_documents():
-            file_path = Path(item["storage_path"])
+            storage_path = item.get("storage_path")
+            if not storage_path:
+                continue
+            file_path = Path(storage_path)
             if not file_path.exists():
                 continue
             documents.extend(

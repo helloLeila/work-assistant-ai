@@ -60,6 +60,7 @@ def migrate_document_metadata(raw: dict[str, Any]) -> DocumentMetadata:
         maintainer=str(raw.get("maintainer", "")),
         upload_time=upload_time,
         checksum=checksum,
+        doc_type=str(raw.get("doc_type", "")),
         chunk_count=int(raw.get("chunk_count", 0)),
         storage_path=str(raw.get("storage_path", "")),
     )

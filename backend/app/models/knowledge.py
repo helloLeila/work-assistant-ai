@@ -47,6 +47,7 @@ class DocumentMetadata(BaseModel):
     maintainer: str = ""
     upload_time: str = ""
     checksum: str = ""
+    doc_type: str = ""
     chunk_count: int = 0
     storage_path: str = ""
 
