@@ -204,8 +204,112 @@ class KnowledgeIngestionService:
         visibility_scope: VisibilityScope = VisibilityScope.DEPARTMENT,
         owner_user_id: str = "",
     ) -> IngestionResult:
-        """执行完整接入流程（骨架）。"""
-        raise NotImplementedError
+        """执行完整接入流程。
+
+        系统论说明：
+        - 接入流程拆为三步：解析 -> 切分 -> 索引；
+        - 任一步骤失败都不应留下"用户可检索但数据不完整"的中间态；
+        - 解析失败保留原文件并标记 parse_failed，允许管理员不重新上传直接重试解析；
+        - 切分失败按 parse_failed 处理，因为 chunk 未生成；
+        - 索引失败标记 index_failed，已生成的 chunk 不发布到正式检索集合。
+        """
+        doc_id = f"doc-{uuid4().hex[:12]}"
+        extension = Path(filename).suffix.lower().replace(".", "") or "txt"
+        file_path = self._settings.upload_dir / f"{doc_id}-{filename}"
+        file_path.write_bytes(content)
+        checksum = compute_checksum(content)
+        upload_time = datetime.now(timezone.utc).isoformat()
+
+        # 步骤 1：解析
+        try:
+            raw_documents, section_paths = self._parser.parse(file_path, extension)
+        except Exception:
+            # 解析失败保留原文件，标记 parse_failed，不发布 chunk
+            self._save_metadata(
+                doc_id=doc_id,
+                filename=filename,
+                department=department,
+                doc_type=extension,
+                upload_time=upload_time,
+                checksum=checksum,
+                status=DocumentStatus.PARSE_FAILED,
+                title=title,
+                visibility_scope=visibility_scope,
+                owner_user_id=owner_user_id,
+                storage_path=str(file_path),
+            )
+            return IngestionResult(doc_id=doc_id, status=DocumentStatus.PARSE_FAILED.value)
+
+        # 步骤 2：切分
+        chunking_strategy = self._parser._resolver.resolve(extension, title)
+        try:
+            documents = self._parser.split(
+                raw_documents,
+                section_paths,
+                doc_id=doc_id,
+                file_path=file_path,
+                department=department,
+                doc_type=extension,
+                upload_time=upload_time,
+                chunking_strategy=chunking_strategy,
+            )
+        except Exception:
+            self._save_metadata(
+                doc_id=doc_id,
+                filename=filename,
+                department=department,
+                doc_type=extension,
+                upload_time=upload_time,
+                checksum=checksum,
+                status=DocumentStatus.PARSE_FAILED,
+                title=title,
+                visibility_scope=visibility_scope,
+                owner_user_id=owner_user_id,
+                storage_path=str(file_path),
+            )
+            return IngestionResult(doc_id=doc_id, status=DocumentStatus.PARSE_FAILED.value)
+
+        # 步骤 3：索引
+        try:
+            self._index_documents(documents)
+        except Exception:
+            # 索引失败不发布半成品 chunk，标记 index_failed
+            self._save_metadata(
+                doc_id=doc_id,
+                filename=filename,
+                department=department,
+                doc_type=extension,
+                upload_time=upload_time,
+                checksum=checksum,
+                status=DocumentStatus.INDEX_FAILED,
+                title=title,
+                visibility_scope=visibility_scope,
+                owner_user_id=owner_user_id,
+                storage_path=str(file_path),
+                chunk_count=len(documents),
+            )
+            return IngestionResult(doc_id=doc_id, status=DocumentStatus.INDEX_FAILED.value)
+
+        # 成功
+        self._save_metadata(
+            doc_id=doc_id,
+            filename=filename,
+            department=department,
+            doc_type=extension,
+            upload_time=upload_time,
+            checksum=checksum,
+            status=DocumentStatus.ACTIVE,
+            title=title,
+            visibility_scope=visibility_scope,
+            owner_user_id=owner_user_id,
+            storage_path=str(file_path),
+            chunk_count=len(documents),
+        )
+        return IngestionResult(
+            doc_id=doc_id,
+            status=DocumentStatus.ACTIVE.value,
+            chunk_count=len(documents),
+        )
 
     def retry_parse(self, doc_id: str) -> IngestionResult | None:
         """对 parse_failed 的文档重试解析。"""
