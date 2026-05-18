@@ -331,5 +331,145 @@ class KnowledgeIngestionService:
         return self._run_from_parse(doc_id, file_path, raw)
 
     def retry_index(self, doc_id: str) -> IngestionResult | None:
-        """对 index_failed 的文档重试索引。"""
-        raise NotImplementedError
+        """对 index_failed 的文档重试索引。
+
+        系统论说明：
+        - 从 index_failed 恢复时，需要重新执行解析-切分-索引完整流程；
+        - 因为 chunk 数据未持久化到检索集合，索引步骤无状态可复用；
+        - 重试成功后更新 metadata 为 active，失败时保持或回退到 index_failed。
+        """
+        metadata_list = self._load_metadata_list()
+        raw = next((m for m in metadata_list if m.get("doc_id") == doc_id), None)
+        if raw is None:
+            return None
+        if raw.get("status") != DocumentStatus.INDEX_FAILED.value:
+            return None
+        file_path = Path(str(raw.get("storage_path", "")))
+        if not file_path.exists():
+            return None
+        return self._run_from_parse(doc_id, file_path, raw)
+
+    def _run_from_parse(self, doc_id: str, file_path: Path, raw: dict[str, Any]) -> IngestionResult:
+        """从解析步骤开始重建完整接入流程。
+
+        系统论说明：
+        - 被 retry_parse 和 retry_index 复用；
+        - 从 metadata 中提取原始参数，保持与首次接入一致的上下文。
+        """
+        department = str(raw.get("department", ""))
+        doc_type = str(raw.get("doc_type", ""))
+        upload_time = str(raw.get("upload_time", ""))
+        title = str(raw.get("title", ""))
+        visibility_scope = VisibilityScope(str(raw.get("visibility_scope", VisibilityScope.DEPARTMENT.value)))
+        owner_user_id = str(raw.get("owner_user_id", ""))
+        checksum = str(raw.get("checksum", ""))
+
+        try:
+            raw_documents, section_paths = self._parser.parse(file_path, doc_type)
+        except Exception:
+            return IngestionResult(doc_id=doc_id, status=DocumentStatus.PARSE_FAILED.value)
+
+        chunking_strategy = self._parser._resolver.resolve(doc_type, title)
+        try:
+            documents = self._parser.split(
+                raw_documents,
+                section_paths,
+                doc_id=doc_id,
+                file_path=file_path,
+                department=department,
+                doc_type=doc_type,
+                upload_time=upload_time,
+                chunking_strategy=chunking_strategy,
+            )
+        except Exception:
+            return IngestionResult(doc_id=doc_id, status=DocumentStatus.PARSE_FAILED.value)
+
+        try:
+            self._index_documents(documents)
+        except Exception:
+            self._update_metadata_status(doc_id, DocumentStatus.INDEX_FAILED, chunk_count=len(documents))
+            return IngestionResult(doc_id=doc_id, status=DocumentStatus.INDEX_FAILED.value)
+
+        self._update_metadata_status(doc_id, DocumentStatus.ACTIVE, chunk_count=len(documents))
+        return IngestionResult(
+            doc_id=doc_id,
+            status=DocumentStatus.ACTIVE.value,
+            chunk_count=len(documents),
+        )
+
+    def _index_documents(self, documents: list[Any]) -> None:
+        """将 chunk 列表写入向量索引。
+
+        系统论说明：
+        - 作为接入流程最后一步，失败时应触发 index_failed 回滚；
+        - 底层调用 Milvus 客户端，具体索引策略由向量层决定。
+        """
+        from app.vectorstore.milvus_client import get_knowledge_vectorstore
+        get_knowledge_vectorstore().index_documents(documents)
+
+    def _load_metadata_list(self) -> list[dict[str, Any]]:
+        """读取当前 metadata 列表。"""
+        return json.loads(self._metadata_path.read_text(encoding="utf-8"))
+
+    def _save_metadata(
+        self,
+        *,
+        doc_id: str,
+        filename: str,
+        department: str,
+        doc_type: str,
+        upload_time: str,
+        checksum: str,
+        status: DocumentStatus,
+        title: str = "",
+        visibility_scope: VisibilityScope = VisibilityScope.DEPARTMENT,
+        owner_user_id: str = "",
+        storage_path: str = "",
+        chunk_count: int = 0,
+    ) -> None:
+        """将文档 metadata 持久化到 knowledge_metadata.json。
+
+        系统论说明：
+        - 每个文档在接入流程中仅写入一次 metadata，后续状态变更通过 _update_metadata_status；
+        - metadata 同时作为文档管理入口和检索侧 ACL 过滤的数据源。
+        """
+        metadata_list = self._load_metadata_list()
+        doc = DocumentMetadata(
+            doc_id=doc_id,
+            title=title,
+            source_file=filename,
+            department=department,
+            visibility_scope=visibility_scope,
+            owner_user_id=owner_user_id,
+            status=status,
+            version="v1.0",
+            is_latest=True,
+            effective_at=upload_time,
+            upload_time=upload_time,
+            checksum=checksum,
+            doc_type=doc_type,
+            chunk_count=chunk_count,
+            storage_path=storage_path,
+        )
+        metadata_list.append(doc.model_dump(mode="json"))
+        self._metadata_path.write_text(
+            json.dumps(metadata_list, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+    def _update_metadata_status(self, doc_id: str, status: DocumentStatus, chunk_count: int | None = None) -> None:
+        """更新文档状态。
+
+        系统论说明：
+        - 用于重试流程中从 parse_failed/index_failed 恢复到 active；
+        - 状态变更时同步更新 chunk_count，保持 metadata 一致性。
+        """
+        metadata_list = self._load_metadata_list()
+        for item in metadata_list:
+            if item.get("doc_id") == doc_id:
+                item["status"] = status.value
+                if chunk_count is not None:
+                    item["chunk_count"] = chunk_count
+                break
+        self._metadata_path.write_text(
+            json.dumps(metadata_list, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
