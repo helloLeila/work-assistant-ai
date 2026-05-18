@@ -61,7 +61,7 @@ LangChain 能力层
 Milvus / PostgreSQL / Redis / 外部商旅系统
 ```
 
-## 项目目录
+## 项目目录（初始版本）
 
 ```text
 tongtong/
