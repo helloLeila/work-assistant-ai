@@ -129,6 +129,7 @@ def resolve_access_policy(
         allowed_project_ids=allowed_project_ids,
         can_read_private_doc_ids=can_read_private_doc_ids,
         milvus_filter=milvus_filter,
+        user_id=user.user_id,
     )
 
 

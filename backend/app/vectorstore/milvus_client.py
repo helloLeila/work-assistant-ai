@@ -129,15 +129,21 @@ class KnowledgeVectorStore:
         self,
         query: str,
         *,
-        department: str | None = None,
-        doc_type: str | None = None,
+        access_policy: AccessPolicy | None = None,
+        history_lookup: bool = False,
         top_k: int,
     ) -> list[dict[str, Any]]:
+        """本地词法回退检索。
+
+        系统论说明：
+        - Milvus 不可用时执行此路径；
+        - 必须复用与 dense 路径完全一致的 ACL 过滤逻辑，否则构成越权泄露；
+        - 默认排除 deprecated、非最新版本、过期文档；history_lookup 时放宽版本限制。
+        """
         candidates = []
         for doc in self._records:
-            if department and doc.metadata.get("department") != department:
-                continue
-            if doc_type and doc.metadata.get("doc_type") != doc_type:
+            # 统一 ACL 过滤
+            if not self._document_passes_acl(doc.metadata, access_policy, history_lookup=history_lookup):
                 continue
             score = self._lexical_score(query, doc.page_content)
             if score > 0:
@@ -158,6 +164,49 @@ class KnowledgeVectorStore:
             candidates.remove(best)
 
         return [self._to_search_result(doc, score) for doc, score, _ in selected]
+
+    def _document_passes_acl(
+        self,
+        metadata: dict[str, Any],
+        access_policy: AccessPolicy | None,
+        *,
+        history_lookup: bool = False,
+    ) -> bool:
+        """判断文档是否通过 ACL 过滤。
+
+        系统论说明：
+        - 本地回退路径的核心安全检查点，必须与 Milvus filter 语义一致；
+        - 返回 False 的文档不能进入候选集，不能参与 merge/rerank。
+        """
+        # 默认过滤：status=active，history_lookup 时放宽
+        status = metadata.get("status", DocumentStatus.ACTIVE.value)
+        if status not in {DocumentStatus.ACTIVE.value, DocumentStatus.SYNC_PENDING.value}:
+            if not history_lookup:
+                return False
+
+        # 版本过滤：默认只保留 is_latest
+        if not history_lookup and not metadata.get("is_latest", True):
+            return False
+
+        if access_policy is None:
+            return True
+
+        # visibility_scope 过滤
+        scope = metadata.get("visibility_scope", VisibilityScope.PUBLIC.value)
+        if scope == VisibilityScope.PUBLIC.value:
+            return True
+        if scope == VisibilityScope.DEPARTMENT.value:
+            return metadata.get("department") in access_policy.allowed_departments
+        if scope == VisibilityScope.PROJECT.value:
+            doc_projects = set(metadata.get("project_ids", []))
+            return bool(doc_projects & set(access_policy.allowed_project_ids))
+        if scope == VisibilityScope.PRIVATE.value:
+            # 管理员或文档所有者可见
+            if metadata.get("doc_id") in access_policy.can_read_private_doc_ids:
+                return True
+            # 普通用户只能查看自己拥有的 private 文档
+            return metadata.get("owner_user_id") == access_policy.user_id
+        return True
 
     def _to_search_result(self, doc: Document, score: float) -> dict[str, Any]:
         return {

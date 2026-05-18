@@ -25,12 +25,20 @@ class BiasMode(str, Enum):
 
 
 class AccessPolicy(BaseModel):
-    """ACL 统一输出。"""
+    """ACL 统一输出。
+
+    系统论说明：
+    - 由 AccessPolicyResolver（app.services.access_policy_service）解析用户上下文生成；
+    - 被 KnowledgeVectorStore.search（app.vectorstore.milvus_client）接收，用于 dense 主路径与
+      本地词法回退路径的统一过滤；
+    - user_id 用于本地回退路径判断 private 文档所有权，milvus_filter 用于 Milvus expr 参数。
+    """
 
     allowed_departments: list[str] = Field(default_factory=list)
     allowed_project_ids: list[str] = Field(default_factory=list)
     can_read_private_doc_ids: list[str] = Field(default_factory=list)
     milvus_filter: str = ""
+    user_id: str = ""
 
 
 class QueryRewriteResult(BaseModel):
