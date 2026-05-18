@@ -91,3 +91,32 @@ class TestKeywordExtraction:
         assert "请问" not in result.keywords
         assert "一下" not in result.keywords
         assert "怎么" not in result.keywords
+
+
+class TestRewriteBlacklist:
+    """测试固定编码改写黑名单。"""
+
+    def test_skips_rewrite_for_employee_id(self, service: QueryRewriteService) -> None:
+        """查询包含 4 位以上数字（工号）时不做改写。"""
+        result = service.rewrite("请问一下员工 12345 的报销政策")
+        assert result.strategy == "blacklist_skip"
+        assert result.rewritten_query == "请问一下员工 12345 的报销政策"
+
+    def test_skips_rewrite_for_project_code(self, service: QueryRewriteService) -> None:
+        """查询包含项目编码（如 PRJ-001）时不做改写。"""
+        result = service.rewrite("PRJ-001 的合同在哪里")
+        assert result.strategy == "blacklist_skip"
+        assert result.rewritten_query == "PRJ-001 的合同在哪里"
+
+    def test_skips_rewrite_for_contract_number(self, service: QueryRewriteService) -> None:
+        """查询包含中文公文编号时不做改写。"""
+        result = service.rewrite("人字第2024001号 是否有效")
+        assert result.strategy == "blacklist_skip"
+
+    def test_blacklist_still_extracts_keywords(self, service: QueryRewriteService) -> None:
+        """黑名单跳过改写但仍提取关键词。"""
+        result = service.rewrite("员工 12345 的报销政策")
+        assert result.strategy == "blacklist_skip"
+        # "的"作为停用词被清洗后，"报销政策"作为整体被保留
+        assert any("报销" in k for k in result.keywords)
+        assert any("政策" in k for k in result.keywords)

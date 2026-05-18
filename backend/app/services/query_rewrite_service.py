@@ -25,6 +25,34 @@ from app.core.config import get_settings
 from app.models.knowledge_retrieval import QueryRewriteResult
 
 
+# 改写黑名单：工号、合同编号、项目编码等固定标识模式
+# 命中黑名单的查询不做任何改写，防止精确标识被 LLM 或规则改写后丢失匹配能力
+_REWRITE_BLACKLIST_PATTERNS = [
+    re.compile(r"[A-Z]?\d{4,}"),          # 4位以上数字，可能带前缀字母（工号、合同号）
+    re.compile(r"[一-鿿]{2,4}字第\d+号"),  # 中文公文编号（如"人字第2024001号"）
+    re.compile(r"[A-Z]{2,4}-\d{2,6}"),    # 项目编码格式（如 PRJ-001、HR-2024）
+]
+
+
+def _contains_blacklisted_identifier(query: str) -> bool:
+    """检查查询中是否包含禁止改写的固定编码标识。
+
+    若命中黑名单，则整条查询不做改写，直接回退原 query，
+    防止工号、合同编号、项目编码被改写后丢失精确匹配能力。
+
+    参数：
+    - query: 用户原始查询字符串。
+
+    返回值：
+    True 表示命中黑名单，rewrite() 应跳过 _light_rewrite；
+    False 表示未命中，允许正常改写。
+    """
+    for pattern in _REWRITE_BLACKLIST_PATTERNS:
+        if pattern.search(query):
+            return True
+    return False
+
+
 # 停用词：礼貌词和虚词，不参与关键词提取
 _STOP_WORDS = {
     "请", "请问", "谢谢", "您好", "你好", "麻烦", "帮忙", "能不能", "可以",
@@ -54,10 +82,18 @@ def _extract_keywords(text: str, max_keywords: int = 5) -> list[str]:
     下游 retrieval_pipeline 会把 keywords 与 dense query 一起送入 hybrid retrieval。
     """
     tokens = re.findall(r"[一-鿿A-Za-z0-9]{2,}", text)
-    filtered = [t for t in tokens if t.lower() not in _STOP_WORDS and t not in _STOP_WORDS]
+    cleaned: list[str] = []
+    for token in tokens:
+        # 清洗开头和结尾的停用词字符，防止虚词粘连到实词上
+        while token and token[0] in _STOP_WORDS:
+            token = token[1:]
+        while token and token[-1] in _STOP_WORDS:
+            token = token[:-1]
+        if len(token) >= 2 and token not in _STOP_WORDS:
+            cleaned.append(token)
     seen: set[str] = set()
     result: list[str] = []
-    for token in filtered:
+    for token in cleaned:
         if token not in seen:
             seen.add(token)
             result.append(token)
@@ -148,6 +184,17 @@ class QueryRewriteService:
         strategy、retry_count，供下游 retrieval_pipeline 统一消费。
         """
         original = query.strip()
+
+        # 黑名单检查：若查询包含工号/编码/合同号等固定标识，不做改写
+        if _contains_blacklisted_identifier(original):
+            keywords = _extract_keywords(original)
+            return QueryRewriteResult(
+                original_query=original,
+                rewritten_query=original,
+                keywords=keywords,
+                strategy="blacklist_skip",
+                retry_count=retry_count,
+            )
 
         try:
             rewritten = _light_rewrite(original)
