@@ -23,6 +23,54 @@ from app.core.config import get_settings
 from app.models.knowledge_retrieval import QueryRewriteResult
 
 
+def _light_rewrite(query: str) -> str:
+    """轻量改写：对口语化查询做规范化处理。
+
+    当前实现为规则化轻量改写，不依赖 LLM，避免网络抖动导致改写失败。
+    改写规则：
+    1. 去除首尾空白；
+    2. 去除常见口语前缀（"请问一下"、"我想知道"等）；
+    3. 把"怎么办"、"怎么做"转换为"流程"或"规定"，提升制度类文档召回率；
+    4. 保留原文核心语义，不做扩写或摘要。
+
+    参数：
+    - query: 用户原始查询字符串。
+
+    返回值：
+    改写后的查询字符串。若改写失败或结果为空，调用方应回退到原 query。
+
+    调用方：
+    QueryRewriteService.rewrite 在确认查询未命中黑名单后调用本函数。
+    """
+    rewritten = query.strip()
+
+    # 去除口语前缀
+    prefixes = ["请问一下", "请问", "我想知道", "我想了解", "麻烦问一下", "能不能告诉我"]
+    for prefix in prefixes:
+        if rewritten.startswith(prefix):
+            rewritten = rewritten[len(prefix):].strip()
+            break
+
+    # 去除口语后缀并替换为制度类关键词
+    suffix_replacements = {
+        "怎么办": "流程",
+        "怎么做": "流程",
+        "怎么休": "休假 流程",
+        "有什么要求": "要求 规定",
+        "需要什么": "要求",
+    }
+    for suffix, replacement in suffix_replacements.items():
+        if rewritten.endswith(suffix):
+            prefix_part = rewritten[: -len(suffix)].rstrip()
+            rewritten = prefix_part + " " + replacement if prefix_part else replacement
+            break
+
+    # 若改写后为空，回退原查询
+    if not rewritten:
+        return query
+    return rewritten
+
+
 class QueryRewriteService:
     """查询改写服务。
 
@@ -56,11 +104,21 @@ class QueryRewriteService:
         QueryRewriteResult，包含 original_query、rewritten_query、keywords、
         strategy、retry_count，供下游 retrieval_pipeline 统一消费。
         """
+        original = query.strip()
+
+        try:
+            rewritten = _light_rewrite(original)
+        except Exception:
+            # 改写失败时回退原 query，保证检索链路不中断
+            rewritten = original
+
+        strategy = "light_rewrite" if rewritten != original else "no_change"
+
         return QueryRewriteResult(
-            original_query=query,
-            rewritten_query=query,
+            original_query=original,
+            rewritten_query=rewritten,
             keywords=[],
-            strategy="skeleton",
+            strategy=strategy,
             retry_count=retry_count,
         )
 

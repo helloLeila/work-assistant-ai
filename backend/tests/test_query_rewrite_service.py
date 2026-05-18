@@ -32,11 +32,39 @@ class TestSkeleton:
         assert isinstance(result, QueryRewriteResult)
 
     def test_preserves_original_query(self, service: QueryRewriteService) -> None:
-        """骨架阶段不改变 original_query。"""
+        """rewrite 不改变 original_query。"""
         result = service.rewrite("请问一下年假怎么休")
         assert result.original_query == "请问一下年假怎么休"
 
-    def test_skeleton_strategy(self, service: QueryRewriteService) -> None:
-        """骨架阶段 strategy 标记为 skeleton。"""
+    def test_strategy_no_change(self, service: QueryRewriteService) -> None:
+        """未触发改写时 strategy 标记为 no_change。"""
         result = service.rewrite("anything")
-        assert result.strategy == "skeleton"
+        assert result.strategy == "no_change"
+
+
+class TestLightRewrite:
+    """测试轻量规则改写与失败兜底。"""
+
+    def test_removes_polite_prefix(self, service: QueryRewriteService) -> None:
+        """去除常见口语前缀。"""
+        result = service.rewrite("请问一下年假怎么休")
+        assert result.rewritten_query == "年假 休假 流程"
+        assert result.strategy == "light_rewrite"
+
+    def test_replaces_suffix(self, service: QueryRewriteService) -> None:
+        """把口语后缀替换为制度类关键词。"""
+        result = service.rewrite("报销怎么做")
+        assert result.rewritten_query == "报销 流程"
+        assert result.strategy == "light_rewrite"
+
+    def test_fallback_on_exception(self, service: QueryRewriteService, monkeypatch) -> None:
+        """_light_rewrite 抛异常时回退原 query。"""
+        from app.services import query_rewrite_service
+
+        def raise_error(q: str) -> str:
+            raise RuntimeError("rewrite error")
+
+        monkeypatch.setattr(query_rewrite_service, "_light_rewrite", raise_error)
+        result = service.rewrite("年假怎么休")
+        assert result.rewritten_query == "年假怎么休"
+        assert result.strategy == "no_change"
