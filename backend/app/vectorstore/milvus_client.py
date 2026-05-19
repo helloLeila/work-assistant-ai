@@ -33,6 +33,7 @@ from app.core.config import get_settings
 from app.core.llm import get_embeddings_model
 from app.models.knowledge import DocumentStatus, VisibilityScope
 from app.models.knowledge_retrieval import AccessPolicy
+from app.services.rerank_service import RerankService
 
 TOKEN_PATTERN = re.compile(r"[一-鿿A-Za-z0-9]+")
 
@@ -50,6 +51,7 @@ class KnowledgeVectorStore:
         self._settings = get_settings()
         self._records: list[Document] = []
         self._milvus: Milvus | None = None
+        self._rerank_service = RerankService()
 
     def _rrf_merge(
         self,
@@ -165,7 +167,10 @@ class KnowledgeVectorStore:
            获取文本匹配候选，弥补 dense embedding 对罕见词的召回不足；
         3. 若 Milvus 异常或不可用，自动回退到 _lexical_search 本地词法检索；
         4. 本地回退路径同样接收 access_policy 与 history_lookup，通过 _document_passes_acl
-           执行与 dense 路径等价的 ACL 过滤。
+           执行与 dense 路径等价的 ACL 过滤；
+        5. RRF 融合：调用 _rrf_merge 对 dense 和 sparse 结果进行 Reciprocal Rank Fusion；
+        6. rerank 精排：调用 self._rerank_service.rerank 对融合后的候选做二次排序，
+           输出 Top-K 供下游生成阶段使用。
 
         返回值：
         list[dict]，每个 dict 包含 doc_id、chunk_id、content、source_file、
@@ -211,7 +216,10 @@ class KnowledgeVectorStore:
 
         # 使用 RRF 融合 dense + sparse 结果
         merged = self._rrf_merge(dense_results, sparse_results, rank_constant=self._settings.knowledge_rrf_rank_constant)
-        return merged
+        # 接入 rerank 精排：把 RRF 融合后的候选交给 RerankService 做二次排序，
+        # 输出相关性最高的 Top-K 供下游生成阶段使用。
+        reranked = self._rerank_service.rerank(query, merged, top_k=top_k, profile=profile)
+        return reranked
 
     def _build_milvus_filter(self, access_policy: AccessPolicy | None, *, history_lookup: bool) -> str | None:
         """构建 Milvus 过滤表达式，供 dense 主路径的 expr 参数使用。
@@ -488,9 +496,19 @@ class KnowledgeVectorStore:
         - snippet: 前 180 字摘要；
         - token_count: chunk 的 token 数，由 ingestion 阶段计算并写入 metadata。
         """
+        chunk_id = str(doc.metadata.get("chunk_id", ""))
+        doc_id = str(doc.metadata.get("doc_id", ""))
+        if not chunk_id:
+            chunk_id = doc_id
+        if not chunk_id:
+            # 兜底：若 metadata 中既无 chunk_id 也无 doc_id，用内容 hash 生成唯一标识，
+            # 保证 RRF 融合阶段不因空 key 而丢弃候选。
+            chunk_id = f"fallback-{hash(doc.page_content) & 0xFFFFFFFF}"
+        if not doc_id:
+            doc_id = chunk_id
         return {
-            "doc_id": str(doc.metadata.get("doc_id", "")),
-            "chunk_id": str(doc.metadata.get("chunk_id", "")),
+            "doc_id": doc_id,
+            "chunk_id": chunk_id,
             "content": doc.page_content,
             "source_file": str(doc.metadata.get("source_file", "")),
             "section_path": str(doc.metadata.get("section_path", "")),

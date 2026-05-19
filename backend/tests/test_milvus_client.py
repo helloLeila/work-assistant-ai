@@ -287,3 +287,34 @@ class TestRrfMerge:
         # 字段集合必须一致
         assert set(sparse[0].keys()) == set(lexical[0].keys())
         assert sparse[0]["chunk_id"] == lexical[0]["chunk_id"] == "doc-1-chunk-1"
+
+
+class TestRerankIntegration:
+    """测试 search 方法接入 rerank 后的端到端行为。"""
+
+    def test_search_limits_results_by_top_k(self, vectorstore: KnowledgeVectorStore) -> None:
+        """search 返回结果数量受 top_k 限制（rerank 截断生效）。"""
+        from langchain_core.documents import Document
+
+        vectorstore._records = [
+            Document(page_content="员工报销流程规定", metadata={"status": "active", "is_latest": True}),
+            Document(page_content="年假休假制度说明", metadata={"status": "active", "is_latest": True}),
+            Document(page_content="出差报销标准", metadata={"status": "active", "is_latest": True}),
+            Document(page_content="考勤打卡规则", metadata={"status": "active", "is_latest": True}),
+        ]
+        results = vectorstore.search("报销", keywords=["报销"], top_k=2)
+        assert len(results) <= 2
+
+    def test_search_rerank_preserves_chunk_id(self, vectorstore: KnowledgeVectorStore) -> None:
+        """rerank 后结果仍保留 chunk_id 字段。"""
+        from langchain_core.documents import Document
+
+        vectorstore._records = [
+            Document(
+                page_content="员工报销流程规定",
+                metadata={"status": "active", "is_latest": True, "chunk_id": "c-1"},
+            ),
+        ]
+        results = vectorstore.search("报销", keywords=["报销"], top_k=5)
+        assert len(results) == 1
+        assert results[0]["chunk_id"] == "c-1"
