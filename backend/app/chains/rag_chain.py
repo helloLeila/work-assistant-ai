@@ -35,6 +35,7 @@ from app.core.security import CurrentUser
 from app.models.knowledge_retrieval import (
     CitationItem,
     KnowledgeAnswerPayload,
+    QueryRewriteResult,
     RetrievalDebugTrace,
 )
 from app.services.access_policy_service import resolve_access_policy
@@ -153,14 +154,33 @@ async def run_retrieval_pipeline(
     # 2. ACL
     access_policy = resolve_access_policy(user) if user is not None else None
 
-    # 3. Hybrid Retrieval
+    # 3. Hybrid Retrieval + Fallback
     vs = vectorstore or KnowledgeVectorStore()
-    candidates = vs.search(
-        rewrite_result.rewritten_query or query,
-        keywords=rewrite_result.keywords or None,
-        access_policy=access_policy,
-        history_lookup=history_lookup,
-    )
+
+    def _execute_search(rewrite: QueryRewriteResult) -> list[dict[str, Any]]:
+        """封装单次检索调用，供 fallback 阶段复用。"""
+        return vs.search(
+            rewrite.rewritten_query or query,
+            keywords=rewrite.keywords or None,
+            access_policy=access_policy,
+            history_lookup=history_lookup,
+        )
+
+    candidates = _execute_search(rewrite_result)
+    fallback_triggered = ""
+    low_recall_threshold = 5
+
+    # Fallback 1：rewrite retry
+    if len(candidates) < low_recall_threshold and rewrite_service.should_retry(rewrite_result, len(candidates)):
+        rewrite_result = rewrite_service.rewrite(query, retry_count=rewrite_result.retry_count + 1)
+        candidates = _execute_search(rewrite_result)
+        fallback_triggered = "rewrite_retry"
+
+    # Fallback 2：升档（只升级 1 档 retrieval profile）
+    if len(candidates) < low_recall_threshold:
+        vs.upscale_for_next_search()
+        candidates = _execute_search(rewrite_result)
+        fallback_triggered = "upscale"
 
     # 4. Citation 打包
     citations: list[CitationItem] = []
@@ -201,9 +221,10 @@ async def run_retrieval_pipeline(
         rewritten_query=rewrite_result.rewritten_query,
         profile="standard",
         reranked_top=candidates,
-        low_recall=len(candidates) < 5,
+        low_recall=len(candidates) < low_recall_threshold,
         low_confidence=len(candidates) < 3,
         rewrite_retry_count=rewrite_result.retry_count,
+        fallback_triggered=fallback_triggered,
         history_lookup=history_lookup,
     )
 

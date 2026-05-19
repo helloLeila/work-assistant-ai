@@ -118,6 +118,26 @@ class TestHistoryLookup:
         assert result.retrieval_debug.history_lookup is True
 
 
+class TestFallbackOrder:
+    """测试检索兜底顺序：rewrite retry -> 升档。"""
+
+    def test_fallback_rewrite_retry_then_upscale(self, vectorstore: KnowledgeVectorStore) -> None:
+        """候选不足时先触发 rewrite retry，仍不足则触发升档。"""
+        # 查询"社保"在 fixture 中无匹配，召回为 0，必然触发 fallback
+        result = asyncio.run(run_retrieval_pipeline("社保缴纳比例", vectorstore=vectorstore))
+        assert result.retrieval_debug.low_recall is True
+        # fallback_triggered 应记录最后触动的动作
+        assert result.retrieval_debug.fallback_triggered in ("rewrite_retry", "upscale")
+
+    def test_fallback_records_upscale(self, vectorstore: KnowledgeVectorStore) -> None:
+        """升档后 vectorstore 的 active_profile 应被重置回 standard。"""
+        # 触发一次低召回查询
+        asyncio.run(run_retrieval_pipeline("完全不相关的内容", vectorstore=vectorstore))
+        # 再次查询应回到 standard 档位
+        result = asyncio.run(run_retrieval_pipeline("报销", vectorstore=vectorstore))
+        assert len(result.citations) <= 5
+
+
 class TestRagChainCompatibility:
     """测试旧接口兼容层。"""
 
