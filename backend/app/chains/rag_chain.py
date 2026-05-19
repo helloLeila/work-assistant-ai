@@ -203,8 +203,10 @@ async def run_retrieval_pipeline(
         )
 
     # 5. Grounded Answer（首版简化）
+    # 低置信度判定：rerank 后候选 < 3 时不硬答，返回保守回答
+    low_confidence_threshold = 3
     answer = ""
-    if candidates:
+    if len(candidates) >= low_confidence_threshold:
         context_chunks = []
         for c in candidates[:5]:
             src = c.get("source_file", "")
@@ -220,6 +222,12 @@ async def run_retrieval_pipeline(
             )
             chain = prompt | llm | StrOutputParser()
             answer = await chain.ainvoke({"question": query, "context": context})
+    elif candidates:
+        # 有候选但不足 3 条，低置信度，返回保守回答
+        answer = "找到少量相关内容，但信息不足以给出准确回答，建议联系相关部门确认。"
+    else:
+        # 无候选，返回保守回答
+        answer = "暂无相关资料，请尝试换一种方式提问。"
 
     # 6. Debug Trace
     debug = RetrievalDebugTrace(
@@ -228,7 +236,7 @@ async def run_retrieval_pipeline(
         profile="standard",
         reranked_top=candidates,
         low_recall=len(candidates) < low_recall_threshold,
-        low_confidence=len(candidates) < 3,
+        low_confidence=len(candidates) < low_confidence_threshold,
         rewrite_retry_count=rewrite_result.retry_count,
         fallback_triggered=fallback_triggered,
         history_lookup=history_lookup,

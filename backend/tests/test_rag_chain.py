@@ -138,6 +138,22 @@ class TestFallbackOrder:
         assert len(result.citations) <= 5
 
 
+class TestLowRecallAndConfidence:
+    """测试低召回与低置信度判定及保守回答。"""
+
+    def test_low_confidence_returns_conservative(self, vectorstore: KnowledgeVectorStore) -> None:
+        """候选不足 3 条时判定为低置信度，返回保守回答。"""
+        result = asyncio.run(run_retrieval_pipeline("报销", vectorstore=vectorstore))
+        assert result.retrieval_debug.low_confidence is True
+        assert "不足以给出准确回答" in result.answer or "暂无相关资料" in result.answer
+
+    def test_no_candidates_returns_conservative(self, vectorstore: KnowledgeVectorStore) -> None:
+        """无候选时返回保守回答。"""
+        result = asyncio.run(run_retrieval_pipeline("完全不相关", vectorstore=vectorstore))
+        assert result.retrieval_debug.low_recall is True
+        assert "暂无相关资料" in result.answer
+
+
 class TestRagChainCompatibility:
     """测试旧接口兼容层。"""
 
