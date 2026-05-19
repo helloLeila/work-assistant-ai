@@ -52,6 +52,9 @@ class KnowledgeVectorStore:
         self._records: list[Document] = []
         self._milvus: Milvus | None = None
         self._rerank_service = RerankService()
+        self._default_profile = self._settings.knowledge_retrieval_profile
+        self._active_profile = self._default_profile
+        self._profile_was_auto_upscaled = False
 
     def _rrf_merge(
         self,
@@ -111,6 +114,23 @@ class KnowledgeVectorStore:
         if profile == "high_recall":
             return 20
         return self._settings.knowledge_top_k
+
+    def upscale_for_next_search(self) -> None:
+        """临时升档到 high_recall，仅对下一次无显式 profile 的 search 生效。
+
+        本方法对应 RAG 流程中的 retrieval profile 升档机制。当 rag_chain 检测到
+        召回不足时，可调用本方法临时扩大候选规模；下一次 search 自动降回默认档位，
+        防止高成本模式粘住整个会话。
+
+        调用方：
+        rag_chain（backend/app/chains/rag_chain.py）在低召回时触发升档。
+
+        注意事项：
+        - 若外部显式传入 profile 参数调用 search()，则不走 auto-upscale 路径；
+        - 升档仅影响下一次 search()，执行完后 _active_profile 自动重置为默认值。
+        """
+        self._active_profile = "high_recall"
+        self._profile_was_auto_upscaled = True
 
     def index_documents(self, documents: list[Document]) -> None:
         """建立文档索引。
@@ -177,7 +197,13 @@ class KnowledgeVectorStore:
         section_path、page_num、department、doc_type、score、snippet、token_count 等字段，
         供下游 citation_builder 打包为引用来源。
         """
-        top_k = self._resolve_top_k(profile, top_k)
+        # 临时升档自动降回：若上次是自动升档且本次没有显式指定 profile，降回默认
+        if self._profile_was_auto_upscaled and profile is None:
+            self._active_profile = self._default_profile
+            self._profile_was_auto_upscaled = False
+
+        effective_profile = profile if profile is not None else self._active_profile
+        top_k = self._resolve_top_k(effective_profile, top_k)
 
         # 根据 bias_mode 调整 dense / sparse 的候选规模比例
         dense_top_k = top_k
@@ -218,7 +244,7 @@ class KnowledgeVectorStore:
         merged = self._rrf_merge(dense_results, sparse_results, rank_constant=self._settings.knowledge_rrf_rank_constant)
         # 接入 rerank 精排：把 RRF 融合后的候选交给 RerankService 做二次排序，
         # 输出相关性最高的 Top-K 供下游生成阶段使用。
-        reranked = self._rerank_service.rerank(query, merged, top_k=top_k, profile=profile)
+        reranked = self._rerank_service.rerank(query, merged, top_k=top_k, profile=effective_profile)
         return reranked
 
     def _build_milvus_filter(self, access_policy: AccessPolicy | None, *, history_lookup: bool) -> str | None:

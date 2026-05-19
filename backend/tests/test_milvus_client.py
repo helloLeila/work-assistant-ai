@@ -318,3 +318,32 @@ class TestRerankIntegration:
         results = vectorstore.search("报销", keywords=["报销"], top_k=5)
         assert len(results) == 1
         assert results[0]["chunk_id"] == "c-1"
+
+
+class TestTempUpscale:
+    """测试单请求临时升档后自动降回默认 profile。"""
+
+    def test_temp_upscale_auto_reverts(self, vectorstore: KnowledgeVectorStore) -> None:
+        """临时升档仅生效一次，下次 search 自动降回 standard。"""
+        from langchain_core.documents import Document
+
+        vectorstore._records = [
+            Document(page_content=f"员工报销规定第{i}条", metadata={"status": "active", "is_latest": True})
+            for i in range(30)
+        ]
+
+        # 默认 standard 档位，返回不超过 5 条
+        results_standard = vectorstore.search("报销", keywords=["报销"])
+        assert len(results_standard) <= 5
+
+        # 临时升档到 high_recall
+        vectorstore.upscale_for_next_search()
+
+        # 下一次 search 使用 high_recall，返回不超过 20 条
+        results_upscaled = vectorstore.search("报销", keywords=["报销"])
+        assert len(results_upscaled) <= 20
+        assert len(results_upscaled) >= len(results_standard)
+
+        # 再下一次 search 自动降回 standard，不超过 5 条
+        results_reverted = vectorstore.search("报销", keywords=["报销"])
+        assert len(results_reverted) <= 5
