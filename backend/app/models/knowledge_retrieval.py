@@ -78,6 +78,7 @@ class RetrievalDebugTrace(BaseModel):
     low_recall: bool = False
     rewrite_retry_count: int = 0
     fallback_triggered: str = ""
+    history_lookup: bool = False
 
 
 class AccessAuditLog(BaseModel):

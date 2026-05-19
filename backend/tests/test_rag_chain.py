@@ -50,6 +50,18 @@ def vectorstore() -> KnowledgeVectorStore:
                 "page_num": 1,
             },
         ),
+        Document(
+            page_content="2023年旧版报销规定（已作废）",
+            metadata={
+                "status": "deprecated",
+                "is_latest": False,
+                "doc_id": "doc-old",
+                "chunk_id": "doc-old-c1",
+                "source_file": "旧报销制度.txt",
+                "section_path": "第一章",
+                "page_num": 1,
+            },
+        ),
     ]
     return vs
 
@@ -78,6 +90,32 @@ class TestRetrievalPipeline:
         result = asyncio.run(run_retrieval_pipeline("请问一下报销怎么做", vectorstore=vectorstore))
         assert result.retrieval_debug.rewritten_query != ""
         assert "报销" in result.retrieval_debug.rewritten_query
+
+
+class TestHistoryLookup:
+    """测试历史版本查询模式自动检测。"""
+
+    def test_history_lookup_detects_intent(self, vectorstore: KnowledgeVectorStore) -> None:
+        """查询包含'旧版本'时自动开启 history_lookup，命中 deprecated 文档。"""
+        result = asyncio.run(run_retrieval_pipeline("旧版本报销规定", vectorstore=vectorstore))
+        assert result.retrieval_debug.history_lookup is True
+        # 应命中已作废的旧版文档
+        doc_ids = {c.doc_id for c in result.citations}
+        assert "doc-old" in doc_ids
+
+    def test_normal_query_skips_deprecated(self, vectorstore: KnowledgeVectorStore) -> None:
+        """普通查询不开启 history_lookup，deprecated 文档不应出现在结果中。"""
+        result = asyncio.run(run_retrieval_pipeline("报销流程", vectorstore=vectorstore))
+        assert result.retrieval_debug.history_lookup is False
+        doc_ids = {c.doc_id for c in result.citations}
+        assert "doc-old" not in doc_ids
+
+    def test_explicit_history_lookup_overrides(self, vectorstore: KnowledgeVectorStore) -> None:
+        """显式传入 history_lookup=True 时强制开启，不受查询内容影响。"""
+        result = asyncio.run(
+            run_retrieval_pipeline("随便问问", vectorstore=vectorstore, history_lookup=True)
+        )
+        assert result.retrieval_debug.history_lookup is True
 
 
 class TestRagChainCompatibility:

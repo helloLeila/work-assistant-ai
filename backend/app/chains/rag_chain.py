@@ -86,6 +86,33 @@ def format_documents(documents: list[Document]) -> str:
     )
 
 
+# 历史版本查询意图关键词
+_HISTORY_LOOKUP_KEYWORDS = {
+    "旧版本", "历史版本", "作废制度", "旧规则", "过期制度",
+    "deprecated", "已过期", "已作废", "v1.0", "v2.0", "2023年", "2024年",
+}
+
+
+def _detect_history_lookup(query: str) -> bool:
+    """检测用户查询是否包含历史版本/旧制度查询意图。
+
+    当用户明确询问旧版本、作废制度、过期规则等内容时，系统自动开启
+    history_lookup 模式，放宽 is_latest 和 deprecated 过滤，允许命中历史数据。
+
+    参数：
+    - query: 用户原始查询字符串。
+
+    返回值：
+    True 表示命中历史版本意图，应开启 history_lookup；
+    False 表示未命中，使用默认过滤（只检索最新 active 文档）。
+    """
+    lowered = query.lower()
+    for keyword in _HISTORY_LOOKUP_KEYWORDS:
+        if keyword.lower() in lowered:
+            return True
+    return False
+
+
 async def run_retrieval_pipeline(
     query: str,
     *,
@@ -118,6 +145,10 @@ async def run_retrieval_pipeline(
     # 1. Query Rewrite
     rewrite_service = QueryRewriteService()
     rewrite_result = rewrite_service.rewrite(query)
+
+    # 自动检测历史版本查询意图：若用户明确询问旧版本/作废制度，开启 history_lookup
+    if not history_lookup:
+        history_lookup = _detect_history_lookup(query)
 
     # 2. ACL
     access_policy = resolve_access_policy(user) if user is not None else None
@@ -173,6 +204,7 @@ async def run_retrieval_pipeline(
         low_recall=len(candidates) < 5,
         low_confidence=len(candidates) < 3,
         rewrite_retry_count=rewrite_result.retry_count,
+        history_lookup=history_lookup,
     )
 
     return KnowledgeAnswerPayload(
