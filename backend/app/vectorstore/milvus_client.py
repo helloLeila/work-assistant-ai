@@ -253,6 +253,61 @@ class KnowledgeVectorStore:
 
         return [self._to_search_result(doc, score) for doc, score, _ in selected]
 
+    def _sparse_search(
+        self,
+        query: str,
+        keywords: list[str],
+        *,
+        access_policy: AccessPolicy | None = None,
+        history_lookup: bool = False,
+        top_k: int,
+    ) -> list[dict[str, Any]]:
+        """本地稀疏检索（BM25 近似），基于 keywords 做词频评分。
+
+        本函数是 hybrid retrieval 中的 sparse 补充路径，对应 RAG 流程中
+        dense 向量检索之外的文本匹配通道。当用户查询包含明确的关键词时，
+        sparse 路径能弥补 dense embedding 对罕见词或专有名词的召回不足。
+
+        与 _lexical_search 的区别：
+        - _lexical_search 使用完整 query 做 token 重叠，作为 Milvus 不可用时
+          的纯兜底路径；
+        - _sparse_search 使用 QueryRewriteService 提取的 keywords 做命中评分，
+          作为 hybrid retrieval 中与 dense 结果并列的一路候选源。
+
+        评分规则：
+        对每个通过 ACL 的 chunk，统计 keywords 在 content 中的命中比例：
+        score = 命中关键词数 / max(len(keywords), 1)
+        该得分范围 (0, 1]，1 表示所有关键词都命中。
+
+        参数：
+        - query: 用户查询字符串（保留参数位置统一，当前实现主要用 keywords）；
+        - keywords: QueryRewriteService 提取的关键词列表，是 sparse 检索的核心输入；
+        - access_policy: ACL 统一过滤对象；
+        - history_lookup: 是否开启历史版本查询；
+        - top_k: 返回候选数量上限。
+
+        返回值：
+        与 _lexical_search 同格式的 list[dict]，供下游 RRF 融合统一消费。
+        """
+        if not keywords:
+            return []
+
+        keyword_set = {k.lower() for k in keywords}
+        candidates = []
+        for doc in self._records:
+            if not self._document_passes_acl(doc.metadata, access_policy, history_lookup=history_lookup):
+                continue
+            content_lower = doc.page_content.lower()
+            hits = sum(1 for kw in keyword_set if kw in content_lower)
+            score = hits / max(len(keyword_set), 1)
+            if score > 0:
+                candidates.append((doc, score))
+
+        # 按得分降序取 top_k，暂不做 MMR（由 RRF 阶段统一去重）
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        selected = candidates[:top_k]
+        return [self._to_search_result(doc, score) for doc, score in selected]
+
     def _document_passes_acl(
         self,
         metadata: dict[str, Any],
@@ -373,8 +428,23 @@ class KnowledgeVectorStore:
         index_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def _tokenize(self, text: str) -> set[str]:
-        """基于正则的轻量分词，提取中文汉字、英文字母与数字序列。"""
-        return {token.lower() for token in TOKEN_PATTERN.findall(text)}
+        """基于正则的轻量分词，提取中文汉字、英文字母与数字序列。
+
+        分词规则：
+        - 连续中文字符按单字切分，保证中文查询的 token 级别匹配；
+        - 连续英文字母与数字按整词切分，保留英文术语和编号完整性。
+
+        返回值：
+        token 集合，供 _lexical_score、_lexical_search、_sparse_search 使用。
+        """
+        tokens: list[str] = []
+        for match in TOKEN_PATTERN.finditer(text):
+            token = match.group()
+            if any("一" <= c <= "鿿" for c in token):
+                tokens.extend(token)
+            else:
+                tokens.append(token.lower())
+        return set(tokens)
 
     @staticmethod
     def _jaccard(left: set[str], right: set[str]) -> float:

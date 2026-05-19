@@ -123,3 +123,43 @@ class TestDocumentPassesAcl:
         """history_lookup=True 时允许命中非最新版本。"""
         meta = {"status": DocumentStatus.ACTIVE.value, "is_latest": False}
         assert vectorstore._document_passes_acl(meta, None, history_lookup=True) is True
+
+
+class TestSparseSearch:
+    """测试本地稀疏检索（sparse 补充路径）。"""
+
+    def test_sparse_search_returns_candidates(self, vectorstore: KnowledgeVectorStore) -> None:
+        """基于 keywords 的稀疏检索能返回候选。"""
+        from langchain_core.documents import Document
+
+        vectorstore._records = [
+            Document(page_content="员工报销流程规定", metadata={"status": "active", "is_latest": True}),
+            Document(page_content="年假休假制度说明", metadata={"status": "active", "is_latest": True}),
+        ]
+        results = vectorstore._sparse_search("报销", ["报销", "流程"], top_k=5)
+        assert len(results) > 0
+        assert any("报销" in r["content"] for r in results)
+
+    def test_sparse_search_empty_keywords(self, vectorstore: KnowledgeVectorStore) -> None:
+        """空 keywords 时返回空列表。"""
+        results = vectorstore._sparse_search("query", [], top_k=5)
+        assert results == []
+
+    def test_sparse_search_respects_acl(self, vectorstore: KnowledgeVectorStore) -> None:
+        """sparse 路径同样执行 ACL 过滤。"""
+        from langchain_core.documents import Document
+
+        vectorstore._records = [
+            Document(
+                page_content="财务部报销规定",
+                metadata={
+                    "status": "active",
+                    "is_latest": True,
+                    "visibility_scope": VisibilityScope.DEPARTMENT.value,
+                    "department": "Finance",
+                },
+            ),
+        ]
+        policy = AccessPolicy(allowed_departments=["HR"], milvus_filter='status == "active"')
+        results = vectorstore._sparse_search("报销", ["报销"], access_policy=policy, top_k=5)
+        assert len(results) == 0
