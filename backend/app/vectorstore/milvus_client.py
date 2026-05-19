@@ -425,13 +425,16 @@ class KnowledgeVectorStore:
         """
         return {
             "doc_id": str(doc.metadata.get("doc_id", "")),
+            "chunk_id": str(doc.metadata.get("chunk_id", "")),
             "content": doc.page_content,
             "source_file": str(doc.metadata.get("source_file", "")),
+            "section_path": str(doc.metadata.get("section_path", "")),
             "page_num": int(doc.metadata.get("page_num", 1)),
             "department": str(doc.metadata.get("department", "")),
             "doc_type": str(doc.metadata.get("doc_type", "")),
             "score": round(score, 4),
             "snippet": doc.page_content[:180],
+            "token_count": int(doc.metadata.get("token_count", 0)),
         }
 
     def _lexical_score(self, query: str, content: str) -> float:

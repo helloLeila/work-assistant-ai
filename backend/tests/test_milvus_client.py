@@ -190,3 +190,33 @@ class TestSearchHybrid:
         # 即使 keywords 与 query 不同，sparse 仍基于 keywords 命中
         results = vectorstore.search("年假", keywords=["报销"], top_k=5)
         assert any("报销" in r["content"] for r in results)
+
+    def test_candidate_format_unified(self, vectorstore: KnowledgeVectorStore) -> None:
+        """dense、sparse、lexical 三条路径返回的候选字段完全一致。"""
+        from langchain_core.documents import Document
+
+        doc = Document(
+            page_content="测试内容",
+            metadata={
+                "doc_id": "doc-1",
+                "chunk_id": "doc-1-chunk-1",
+                "status": "active",
+                "is_latest": True,
+                "source_file": "test.txt",
+                "section_path": "第一章",
+                "page_num": 1,
+                "department": "HR",
+                "doc_type": "txt",
+                "token_count": 10,
+            },
+        )
+        vectorstore._records = [doc]
+
+        sparse = vectorstore._sparse_search("测试", ["测试"], top_k=5)
+        lexical = vectorstore._lexical_search("测试", top_k=5)
+
+        assert len(sparse) == 1
+        assert len(lexical) == 1
+        # 字段集合必须一致
+        assert set(sparse[0].keys()) == set(lexical[0].keys())
+        assert sparse[0]["chunk_id"] == lexical[0]["chunk_id"] == "doc-1-chunk-1"
