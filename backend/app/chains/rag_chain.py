@@ -40,7 +40,7 @@ from app.models.knowledge_retrieval import (
 )
 from app.services.access_policy_service import resolve_access_policy
 from app.services.knowledge_service import get_knowledge_service
-from app.services.query_rewrite_service import QueryRewriteService
+from app.services.query_rewrite_service import QueryRewriteService, is_hyde_eligible
 from app.vectorstore.milvus_client import KnowledgeVectorStore
 
 
@@ -181,6 +181,12 @@ async def run_retrieval_pipeline(
         vs.upscale_for_next_search()
         candidates = _execute_search(rewrite_result)
         fallback_triggered = "upscale"
+
+    # Fallback 3：HyDE（若命中白名单且仍低召回）
+    # 首版仅实现白名单判定与触发标记，实际假设文档扩写需接入 LLM 生成
+    # 后接二次向量检索，待后续模型能力完备后补齐。
+    if len(candidates) < low_recall_threshold and is_hyde_eligible(query):
+        fallback_triggered = "hyde"
 
     # 4. Citation 打包
     citations: list[CitationItem] = []

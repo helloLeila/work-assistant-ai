@@ -123,10 +123,10 @@ class TestFallbackOrder:
 
     def test_fallback_rewrite_retry_then_upscale(self, vectorstore: KnowledgeVectorStore) -> None:
         """候选不足时先触发 rewrite retry，仍不足则触发升档。"""
-        # 查询"社保"在 fixture 中无匹配，召回为 0，必然触发 fallback
-        result = asyncio.run(run_retrieval_pipeline("社保缴纳比例", vectorstore=vectorstore))
+        # 查询"火星移民政策"在 fixture 中无匹配且不在 HyDE 白名单，召回为 0，触发 fallback
+        result = asyncio.run(run_retrieval_pipeline("火星移民政策", vectorstore=vectorstore))
         assert result.retrieval_debug.low_recall is True
-        # fallback_triggered 应记录最后触动的动作
+        # fallback_triggered 应记录最后触动的动作（rewrite_retry 或 upscale）
         assert result.retrieval_debug.fallback_triggered in ("rewrite_retry", "upscale")
 
     def test_fallback_records_upscale(self, vectorstore: KnowledgeVectorStore) -> None:

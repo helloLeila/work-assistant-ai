@@ -149,3 +149,27 @@ class TestShouldRetry:
     def test_denies_retry_when_recall_sufficient(self, service: QueryRewriteService, rewrite_result: QueryRewriteResult) -> None:
         """召回充足时不触发重试。"""
         assert service.should_retry(rewrite_result, recall_count=10) is False
+
+
+class TestHydeWhitelist:
+    """测试 HyDE 白名单判定。"""
+
+    def test_hr_query_is_eligible(self) -> None:
+        """人事类查询命中 HyDE 白名单。"""
+        from app.services.query_rewrite_service import is_hyde_eligible
+        assert is_hyde_eligible("员工入职流程是什么") is True
+
+    def test_finance_query_is_eligible(self) -> None:
+        """财务类查询命中 HyDE 白名单。"""
+        from app.services.query_rewrite_service import is_hyde_eligible
+        assert is_hyde_eligible("报销政策最新规定") is True
+
+    def test_unrelated_query_not_eligible(self) -> None:
+        """非制度类查询不命中白名单。"""
+        from app.services.query_rewrite_service import is_hyde_eligible
+        assert is_hyde_eligible("今天天气怎么样") is False
+
+    def test_compliance_query_is_eligible(self) -> None:
+        """合规类查询命中 HyDE 白名单。"""
+        from app.services.query_rewrite_service import is_hyde_eligible
+        assert is_hyde_eligible("合规审查要求") is True

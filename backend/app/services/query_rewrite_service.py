@@ -241,3 +241,36 @@ class QueryRewriteService:
         if recall_count < threshold:
             return True
         return False
+
+
+# HyDE（Hypothetical Document Embedding）白名单：仅特定领域查询允许触发假设文档扩写。
+# 不在白名单内的查询即使低召回也不做 HyDE，防止无关查询被过度扩写后引入噪声。
+_HYDE_WHITELIST_KEYWORDS = {
+    "人事", "财务", "合规", "制度", "合同", "报销", "休假", "薪资", "考勤",
+    "绩效", "福利", "培训", "入职", "离职", "请假", "加班", "社保", "公积金",
+}
+
+
+def is_hyde_eligible(query: str) -> bool:
+    """判断查询是否命中 HyDE 白名单，允许执行假设文档扩写。
+
+    HyDE 机制：当检索召回不足时，让 LLM 根据查询生成一段"假设的完美答案"，
+    再用该答案做向量检索，以弥补原始查询与文档之间的语义鸿沟。
+    但该机制只应在制度类、人事财务类查询中使用，避免开放域查询被过度扩写。
+
+    参数：
+    - query: 用户原始查询字符串（或改写后的查询）。
+
+    返回值：
+    True 表示查询命中白名单，rag_chain 在低召回时可触发 HyDE；
+    False 表示未命中，即使低召回也不执行 HyDE，直接返回保守回答。
+
+    调用方：
+    run_retrieval_pipeline（backend/app/chains/rag_chain.py）在 fallback 阶段
+    检测是否允许进入 HyDE 步骤。
+    """
+    lowered = query.lower()
+    for keyword in _HYDE_WHITELIST_KEYWORDS:
+        if keyword in lowered:
+            return True
+    return False
