@@ -81,3 +81,34 @@ class TestEmptyCandidates:
         candidates = [{"chunk_id": "c1", "score": 0.5, "content": "唯一内容"}]
         result = service.rerank("测试查询", candidates)
         assert len(result) == 1
+
+
+class TestInputLimit:
+    """测试不同 profile 对 rerank 输入规模的限制。"""
+
+    def test_high_recall_allows_more_input(self, service: RerankService) -> None:
+        """high_recall 档位允许最多 80 条候选进入重排。"""
+        candidates = [
+            {"chunk_id": f"c{i}", "score": 1.0 - i * 0.001, "content": f"内容{i}"}
+            for i in range(100)
+        ]
+        result = service.rerank("测试查询", candidates, top_k=100, profile="high_recall")
+        assert len(result) == service._input_high_recall_max
+
+    def test_standard_limits_input_to_default(self, service: RerankService) -> None:
+        """standard 档位默认只允许 50 条候选进入重排。"""
+        candidates = [
+            {"chunk_id": f"c{i}", "score": 1.0 - i * 0.001, "content": f"内容{i}"}
+            for i in range(100)
+        ]
+        result = service.rerank("测试查询", candidates, top_k=100, profile="standard")
+        assert len(result) == service._input_max
+
+    def test_none_profile_uses_default_limit(self, service: RerankService) -> None:
+        """未传入 profile 时使用默认输入上限。"""
+        candidates = [
+            {"chunk_id": f"c{i}", "score": 1.0 - i * 0.001, "content": f"内容{i}"}
+            for i in range(100)
+        ]
+        result = service.rerank("测试查询", candidates, top_k=100)
+        assert len(result) == service._input_max
