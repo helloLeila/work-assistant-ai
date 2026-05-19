@@ -265,6 +265,30 @@ make compose-up          # 启动基础设施（PostgreSQL / Milvus / etcd / min
 - Milvus 不可用时，会自动退回到本地词法检索，保证开发环境可运行
 - PostgreSQL 不可用时，会自动退回到本地 SQLite 样例库，保证业务链路不断
 
+### 企业知识库 RAG 核心升级（50 Commit）
+
+知识检索链路已完成企业级 RAG 架构升级，检索流程统一为：
+**Query Rewrite → ACL → Hybrid Retrieval（dense + sparse）→ RRF 融合 → Rerank 精排 → Citation 打包 → Grounded Answer**
+
+核心能力与实现状态：
+
+| 阶段 | 实现文件 | 说明 |
+|------|----------|------|
+| Query Rewrite | `app/services/query_rewrite_service.py` | 轻量规则改写、关键词提取（上限 5 个，停用词过滤）、改写黑名单（工号/合同号/项目编码）、改写重试（最多 1 次）、HyDE 白名单 |
+| ACL | `app/services/access_policy_service.py` | 统一访问策略解析，支持 public / department / private / project 权限范围，管理员可查看 private 文档 |
+| Hybrid Retrieval | `app/vectorstore/milvus_client.py` | dense（Milvus 向量检索）+ sparse（本地 BM25），统一 ACL 过滤，支持三档 profile（faq_low_cost / standard / high_recall）与全局 bias 模式（balanced / semantic_bias / keyword_bias） |
+| RRF 融合 | `app/vectorstore/milvus_client.py` | rank_constant=60，候选按 chunk_id 去重 |
+| Rerank | `app/services/rerank_service.py` | 基于分数的近似重排，standard 档默认 30~50 输入，high_recall 档最大 80 |
+| Fallback | `app/chains/rag_chain.py` | 低召回（< 5）时依次触发：rewrite retry → 临时升档（high_recall，单请求自动降回）→ HyDE 白名单检测 → 保守回答；低置信度（< 3）时返回保守回答 |
+| History Lookup | `app/chains/rag_chain.py` | 查询含"旧版本/历史版本/作废制度"等关键词时自动开启，允许命中 deprecated 文档 |
+| Citation | `app/chains/rag_chain.py` | 检索结果打包为 CitationItem（doc_id / chunk_id / source_file / section_path / snippet），section_path 缺失时回退为"source_file · 第 N 片段" |
+| Debug Trace | `app/services/retrieval_debug_service.py` | 记录各阶段中间结果（dense / sparse / RRF / rerank 候选、改写重试次数、fallback 动作、history_lookup 状态） |
+| Audit Log | `app/services/retrieval_audit_service.py` | 记录用户身份、请求上下文、匹配/阻挡文档、拒绝原因；查询含身份证号/手机号/工号时自动脱敏 |
+| 节点整合 | `app/nodes/knowledge_rag_node.py` | 已接入新链路，返回 KnowledgeAnswerPayload；同时保留 draft_answer / sources / retrieved_docs 供旧节点兼容 |
+| 接口 | `app/api/routes/knowledge.py` | 新增 `POST /api/knowledge/search`，直接返回结构化 KnowledgeAnswerPayload（含 answer、citations、retrieval_debug） |
+
+**兼容性说明**：`run_rag_chain` 保留旧接口签名作为兼容层，`knowledge_rag_node` 与 `grader_node` 同时支持新旧 payload，过渡期内现有 LangGraph 工作流无需改动。
+
 ## 文档
 
 - 面向初学者的说明见 [docs/开发手册.md](/Users/leila/Documents/coding/tongtong/docs/开发手册.md)
