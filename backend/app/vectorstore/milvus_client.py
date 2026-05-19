@@ -51,6 +51,29 @@ class KnowledgeVectorStore:
         self._records: list[Document] = []
         self._milvus: Milvus | None = None
 
+    def _resolve_top_k(self, profile: str | None, top_k: int | None) -> int:
+        """根据检索档位解析最终的 top_k。
+
+        三档配置：
+        - faq_low_cost: 候选数最少，降低调用开销，适用于高频简单问题；
+        - standard: 默认档位，平衡召回与成本；
+        - high_recall: 候选数最多，提升召回率，适用于复杂查询或首次检索失败后的升档。
+
+        参数：
+        - profile: 检索档位，取自 config.knowledge_retrieval_profile；
+        - top_k: 调用方显式传入的 top_k，优先于 profile 解析。
+
+        返回值：
+        解析后的整数 top_k，供 dense/sparse/lexical 三条路径统一使用。
+        """
+        if top_k is not None:
+            return top_k
+        if profile == "faq_low_cost":
+            return 3
+        if profile == "high_recall":
+            return 20
+        return self._settings.knowledge_top_k
+
     def index_documents(self, documents: list[Document]) -> None:
         """建立文档索引。
 
@@ -79,6 +102,7 @@ class KnowledgeVectorStore:
         access_policy: AccessPolicy | None = None,
         history_lookup: bool = False,
         bias_mode: str = "balanced",
+        profile: str | None = None,
         top_k: int | None = None,
     ) -> list[dict[str, Any]]:
         """执行检索，返回带 ACL 过滤的候选 chunk 列表。
@@ -112,7 +136,7 @@ class KnowledgeVectorStore:
         section_path、page_num、department、doc_type、score、snippet、token_count 等字段，
         供下游 citation_builder 打包为引用来源。
         """
-        top_k = top_k or self._settings.knowledge_top_k
+        top_k = self._resolve_top_k(profile, top_k)
 
         # 根据 bias_mode 调整 dense / sparse 的候选规模比例
         dense_top_k = top_k

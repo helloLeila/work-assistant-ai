@@ -215,6 +215,22 @@ class TestSearchHybrid:
         results = vectorstore.search("报销", keywords=["报销", "流程"], bias_mode="semantic_bias", top_k=5)
         assert len(results) >= 0
 
+
+class TestRetrievalProfile:
+    """测试检索档位配置。"""
+
+    def test_faq_low_cost_limits_candidates(self, vectorstore: KnowledgeVectorStore) -> None:
+        """faq_low_cost 档位限制候选规模。"""
+        assert vectorstore._resolve_top_k("faq_low_cost", None) == 3
+
+    def test_high_recall_expands_candidates(self, vectorstore: KnowledgeVectorStore) -> None:
+        """high_recall 档位扩大候选规模。"""
+        assert vectorstore._resolve_top_k("high_recall", None) == 20
+
+    def test_explicit_top_k_overrides_profile(self, vectorstore: KnowledgeVectorStore) -> None:
+        """显式传入 top_k 时优先于 profile。"""
+        assert vectorstore._resolve_top_k("faq_low_cost", 15) == 15
+
     def test_candidate_format_unified(self, vectorstore: KnowledgeVectorStore) -> None:
         """dense、sparse、lexical 三条路径返回的候选字段完全一致。"""
         from langchain_core.documents import Document
