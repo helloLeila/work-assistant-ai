@@ -51,6 +51,42 @@ class KnowledgeVectorStore:
         self._records: list[Document] = []
         self._milvus: Milvus | None = None
 
+    def _rrf_merge(
+        self,
+        *result_lists: list[dict[str, Any]],
+        rank_constant: int = 60,
+    ) -> list[dict[str, Any]]:
+        """使用 Reciprocal Rank Fusion 融合多路检索结果。
+
+        RRF 公式：对每路结果中的每个候选，按其排名计算倒数得分并累加：
+        score = sum(1 / (rank_constant + rank))
+        其中 rank 从 1 开始，rank_constant 默认 60。
+
+        本函数对应 RAG 流程中 Hybrid Retrieval 阶段的融合层，接收 dense 主路径、
+        sparse 补充路径、本地兜底路径等多路候选列表，输出统一排序后的合并结果。
+
+        参数：
+        - result_lists: 可变数量的候选列表，每个列表内部已按该路径的得分降序排列；
+        - rank_constant: RRF 常数，默认 60。该值越大，排名差异对最终得分的影响越小，
+          融合结果越平滑。
+
+        返回值：
+        按 RRF 得分降序排列的合并候选列表，供下游 rerank 阶段使用。
+        """
+        scores: dict[str, float] = {}
+        docs_by_id: dict[str, dict[str, Any]] = {}
+
+        for results in result_lists:
+            for rank, item in enumerate(results, start=1):
+                cid = item.get("chunk_id", "")
+                if not cid:
+                    continue
+                scores[cid] = scores.get(cid, 0.0) + 1.0 / (rank_constant + rank)
+                docs_by_id[cid] = item
+
+        sorted_ids = sorted(scores, key=scores.get, reverse=True)
+        return [docs_by_id[cid] for cid in sorted_ids]
+
     def _resolve_top_k(self, profile: str | None, top_k: int | None) -> int:
         """根据检索档位解析最终的 top_k。
 
@@ -173,16 +209,8 @@ class KnowledgeVectorStore:
                 query, access_policy=access_policy, history_lookup=history_lookup, top_k=top_k
             )
 
-        # 简单合并 dense + sparse，按 chunk_id 去重（RRF 阶段会做更精细的融合）
-        seen_ids: set[str] = set()
-        merged: list[dict[str, Any]] = []
-        for item in dense_results + sparse_results:
-            cid = item.get("chunk_id", "")
-            if cid and cid in seen_ids:
-                continue
-            if cid:
-                seen_ids.add(cid)
-            merged.append(item)
+        # 使用 RRF 融合 dense + sparse 结果
+        merged = self._rrf_merge(dense_results, sparse_results, rank_constant=self._settings.knowledge_rrf_rank_constant)
         return merged
 
     def _build_milvus_filter(self, access_policy: AccessPolicy | None, *, history_lookup: bool) -> str | None:

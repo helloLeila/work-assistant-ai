@@ -231,6 +231,33 @@ class TestRetrievalProfile:
         """显式传入 top_k 时优先于 profile。"""
         assert vectorstore._resolve_top_k("faq_low_cost", 15) == 15
 
+
+class TestRrfMerge:
+    """测试 RRF 融合逻辑。"""
+
+    def test_rrf_merge_ranks_correctly(self, vectorstore: KnowledgeVectorStore) -> None:
+        """RRF 按排名倒数之和重新排序。"""
+        dense = [
+            {"chunk_id": "c1", "score": 0.9},
+            {"chunk_id": "c2", "score": 0.8},
+        ]
+        sparse = [
+            {"chunk_id": "c2", "score": 0.7},
+            {"chunk_id": "c3", "score": 0.6},
+        ]
+        merged = vectorstore._rrf_merge(dense, sparse, rank_constant=60)
+        # c2 在两路中都出现，RRF 得分最高
+        assert merged[0]["chunk_id"] == "c2"
+        assert len(merged) == 3
+
+    def test_rrf_rank_constant_60(self, vectorstore: KnowledgeVectorStore) -> None:
+        """rank_constant=60 时排名差异影响平滑。"""
+        dense = [{"chunk_id": "c1", "score": 0.9}]
+        sparse = [{"chunk_id": "c1", "score": 0.6}]
+        merged = vectorstore._rrf_merge(dense, sparse, rank_constant=60)
+        # 唯一候选，直接返回
+        assert merged[0]["chunk_id"] == "c1"
+
     def test_candidate_format_unified(self, vectorstore: KnowledgeVectorStore) -> None:
         """dense、sparse、lexical 三条路径返回的候选字段完全一致。"""
         from langchain_core.documents import Document
