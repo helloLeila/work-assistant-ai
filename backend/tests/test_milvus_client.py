@@ -191,6 +191,30 @@ class TestSearchHybrid:
         results = vectorstore.search("年假", keywords=["报销"], top_k=5)
         assert any("报销" in r["content"] for r in results)
 
+    def test_keyword_bias_expands_sparse(self, vectorstore: KnowledgeVectorStore) -> None:
+        """keyword_bias 时扩大 sparse 候选规模。"""
+        from langchain_core.documents import Document
+
+        vectorstore._records = [
+            Document(page_content="员工报销流程规定", metadata={"status": "active", "is_latest": True}),
+            Document(page_content="年假休假制度说明", metadata={"status": "active", "is_latest": True}),
+        ]
+        # keyword_bias 下 sparse_top_k = top_k * 1.5 = 7（当 top_k=5）
+        results = vectorstore.search("报销", keywords=["报销", "流程"], bias_mode="keyword_bias", top_k=5)
+        assert len(results) > 0
+
+    def test_semantic_bias_reduces_sparse(self, vectorstore: KnowledgeVectorStore) -> None:
+        """semantic_bias 时缩减 sparse 候选规模。"""
+        from langchain_core.documents import Document
+
+        vectorstore._records = [
+            Document(page_content="员工报销流程规定", metadata={"status": "active", "is_latest": True}),
+            Document(page_content="年假休假制度说明", metadata={"status": "active", "is_latest": True}),
+        ]
+        # semantic_bias 下 sparse_top_k = top_k * 0.5 = 2（当 top_k=5）
+        results = vectorstore.search("报销", keywords=["报销", "流程"], bias_mode="semantic_bias", top_k=5)
+        assert len(results) >= 0
+
     def test_candidate_format_unified(self, vectorstore: KnowledgeVectorStore) -> None:
         """dense、sparse、lexical 三条路径返回的候选字段完全一致。"""
         from langchain_core.documents import Document

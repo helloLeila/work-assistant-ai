@@ -78,6 +78,7 @@ class KnowledgeVectorStore:
         keywords: list[str] | None = None,
         access_policy: AccessPolicy | None = None,
         history_lookup: bool = False,
+        bias_mode: str = "balanced",
         top_k: int | None = None,
     ) -> list[dict[str, Any]]:
         """执行检索，返回带 ACL 过滤的候选 chunk 列表。
@@ -93,6 +94,8 @@ class KnowledgeVectorStore:
           部门、项目权限解析生成。若传入 None，则使用默认过滤规则；
         - history_lookup: 是否开启历史版本查询模式。为 True 时放宽 is_latest 限制，
           允许命中 deprecated 或过期版本文档，用于审计或追溯场景；
+        - bias_mode: 检索偏向总开关，取值 balanced / semantic_bias / keyword_bias。
+          semantic_bias 时扩大 dense 候选、缩减 sparse 候选；keyword_bias 时反之；
         - top_k: 返回候选数量上限，默认读取 config.knowledge_top_k。
 
         执行路径：
@@ -111,11 +114,21 @@ class KnowledgeVectorStore:
         """
         top_k = top_k or self._settings.knowledge_top_k
 
+        # 根据 bias_mode 调整 dense / sparse 的候选规模比例
+        dense_top_k = top_k
+        sparse_top_k = top_k
+        if bias_mode == "semantic_bias":
+            dense_top_k = int(top_k * 1.5)
+            sparse_top_k = max(1, int(top_k * 0.5))
+        elif bias_mode == "keyword_bias":
+            dense_top_k = max(1, int(top_k * 0.5))
+            sparse_top_k = int(top_k * 1.5)
+
         dense_results: list[dict[str, Any]] = []
         if self._milvus is not None:
             try:
                 expression = self._build_milvus_filter(access_policy, history_lookup=history_lookup)
-                docs = self._milvus.max_marginal_relevance_search(query, k=top_k, expr=expression)
+                docs = self._milvus.max_marginal_relevance_search(query, k=dense_top_k, expr=expression)
                 dense_results = [self._to_search_result(doc, self._lexical_score(query, doc.page_content)) for doc in docs]
             except Exception:
                 pass
@@ -127,7 +140,7 @@ class KnowledgeVectorStore:
                 query, keywords,
                 access_policy=access_policy,
                 history_lookup=history_lookup,
-                top_k=top_k,
+                top_k=sparse_top_k,
             )
 
         # 若 dense 无结果且 sparse 无结果，回退到本地词法检索
