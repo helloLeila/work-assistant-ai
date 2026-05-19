@@ -163,3 +163,30 @@ class TestSparseSearch:
         policy = AccessPolicy(allowed_departments=["HR"], milvus_filter='status == "active"')
         results = vectorstore._sparse_search("报销", ["报销"], access_policy=policy, top_k=5)
         assert len(results) == 0
+
+
+class TestSearchHybrid:
+    """测试 search 方法整合 keywords 后的 hybrid 行为。"""
+
+    def test_search_with_keywords(self, vectorstore: KnowledgeVectorStore) -> None:
+        """传入 keywords 时，sparse 补充路径生效。"""
+        from langchain_core.documents import Document
+
+        vectorstore._records = [
+            Document(page_content="员工报销流程规定", metadata={"status": "active", "is_latest": True}),
+            Document(page_content="年假休假制度说明", metadata={"status": "active", "is_latest": True}),
+        ]
+        results = vectorstore.search("报销", keywords=["报销", "流程"], top_k=5)
+        assert len(results) > 0
+        assert any("报销" in r["content"] for r in results)
+
+    def test_search_keywords_do_not_replace_query(self, vectorstore: KnowledgeVectorStore) -> None:
+        """keywords 增强 sparse 命中，不替换原 query 的 dense 检索语义。"""
+        from langchain_core.documents import Document
+
+        vectorstore._records = [
+            Document(page_content="员工报销流程规定", metadata={"status": "active", "is_latest": True}),
+        ]
+        # 即使 keywords 与 query 不同，sparse 仍基于 keywords 命中
+        results = vectorstore.search("年假", keywords=["报销"], top_k=5)
+        assert any("报销" in r["content"] for r in results)

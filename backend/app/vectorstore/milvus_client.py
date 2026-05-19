@@ -75,6 +75,7 @@ class KnowledgeVectorStore:
         self,
         query: str,
         *,
+        keywords: list[str] | None = None,
         access_policy: AccessPolicy | None = None,
         history_lookup: bool = False,
         top_k: int | None = None,
@@ -86,6 +87,8 @@ class KnowledgeVectorStore:
 
         参数说明：
         - query: 用户查询字符串，由 QueryRewriteService 改写后传入；
+        - keywords: QueryRewriteService 提取的关键词列表，作为 sparse 检索补充输入。
+          若传入 None 或空列表，则跳过 sparse 路径；
         - access_policy: ACL 统一过滤对象，由 AccessPolicyResolver 根据当前用户角色、
           部门、项目权限解析生成。若传入 None，则使用默认过滤规则；
         - history_lookup: 是否开启历史版本查询模式。为 True 时放宽 is_latest 限制，
@@ -95,8 +98,10 @@ class KnowledgeVectorStore:
         执行路径：
         1. dense 主路径：若 self._milvus 不为 None，调用 Milvus.max_marginal_relevance_search
            做向量检索，expr 参数由 _build_milvus_filter 根据 access_policy 生成；
-        2. 若 Milvus 异常或不可用，自动回退到 _lexical_search 本地词法检索；
-        3. 本地回退路径同样接收 access_policy 与 history_lookup，通过 _document_passes_acl
+        2. sparse 补充路径：无论 dense 是否成功，都调用 _sparse_search 基于 keywords
+           获取文本匹配候选，弥补 dense embedding 对罕见词的召回不足；
+        3. 若 Milvus 异常或不可用，自动回退到 _lexical_search 本地词法检索；
+        4. 本地回退路径同样接收 access_policy 与 history_lookup，通过 _document_passes_acl
            执行与 dense 路径等价的 ACL 过滤。
 
         返回值：
@@ -106,15 +111,42 @@ class KnowledgeVectorStore:
         """
         top_k = top_k or self._settings.knowledge_top_k
 
+        dense_results: list[dict[str, Any]] = []
         if self._milvus is not None:
             try:
                 expression = self._build_milvus_filter(access_policy, history_lookup=history_lookup)
                 docs = self._milvus.max_marginal_relevance_search(query, k=top_k, expr=expression)
-                return [self._to_search_result(doc, self._lexical_score(query, doc.page_content)) for doc in docs]
+                dense_results = [self._to_search_result(doc, self._lexical_score(query, doc.page_content)) for doc in docs]
             except Exception:
                 pass
 
-        return self._lexical_search(query, access_policy=access_policy, history_lookup=history_lookup, top_k=top_k)
+        # sparse 补充路径：基于 keywords 做文本匹配，不替换 dense 结果
+        sparse_results: list[dict[str, Any]] = []
+        if keywords:
+            sparse_results = self._sparse_search(
+                query, keywords,
+                access_policy=access_policy,
+                history_lookup=history_lookup,
+                top_k=top_k,
+            )
+
+        # 若 dense 无结果且 sparse 无结果，回退到本地词法检索
+        if not dense_results and not sparse_results:
+            return self._lexical_search(
+                query, access_policy=access_policy, history_lookup=history_lookup, top_k=top_k
+            )
+
+        # 简单合并 dense + sparse，按 chunk_id 去重（RRF 阶段会做更精细的融合）
+        seen_ids: set[str] = set()
+        merged: list[dict[str, Any]] = []
+        for item in dense_results + sparse_results:
+            cid = item.get("chunk_id", "")
+            if cid and cid in seen_ids:
+                continue
+            if cid:
+                seen_ids.add(cid)
+            merged.append(item)
+        return merged
 
     def _build_milvus_filter(self, access_policy: AccessPolicy | None, *, history_lookup: bool) -> str | None:
         """构建 Milvus 过滤表达式，供 dense 主路径的 expr 参数使用。
