@@ -114,6 +114,72 @@ def _detect_history_lookup(query: str) -> bool:
     return False
 
 
+def _build_citations(candidates: list[dict[str, Any]]) -> list[CitationItem]:
+    """把检索候选打包为 CitationItem 列表。
+
+    本函数位于 RAG 链路第 4 步（Citation 打包），上游由 Hybrid Retrieval
+    （KnowledgeVectorStore.search）输出的候选 dict 列表驱动；下游把 CitationItem
+    列表写入 KnowledgeAnswerPayload.citations，供 generate_node 构建带引用回答
+    以及前端溯源展示使用。
+
+    字段映射规则：
+    - doc_id / chunk_id / source_file / section_path / snippet 直接透传；
+    - version 暂留空，待后续接入文档版本系统后填充；
+    - 所有字段强制转 str，防止 Milvus 或本地回退路径返回非字符串类型。
+
+    参数：
+    - candidates: 经 RRF 融合与 rerank 后的 Top-K 候选，每条为 dict。
+
+    返回值：
+    CitationItem 列表，顺序与 candidates 一致（即rerank后的排序）。
+    """
+    citations: list[CitationItem] = []
+    for c in candidates:
+        citations.append(
+            CitationItem(
+                doc_id=str(c.get("doc_id", "")),
+                chunk_id=str(c.get("chunk_id", "")),
+                source_file=str(c.get("source_file", "")),
+                section_path=str(c.get("section_path", "")),
+                version="",
+                snippet=str(c.get("snippet", "")),
+            )
+        )
+    return citations
+
+
+def _build_context_chunks(candidates: list[dict[str, Any]]) -> list[str]:
+    """把候选转为带引用标记的上下文片段，供 Grounded Answer prompt 使用。
+
+    本函数位于 RAG 链路第 5 步（Grounded Answer）的 prompt 拼装环节，
+    上游接收 rerank 后的 Top-K 候选（通常取前 5 条），下游把拼接结果送入
+    ChatPromptTemplate 的 context 变量，供 LLM 生成带依据的回答。
+
+    引用格式规则：
+    - 候选存在 section_path 时，引用标记为 `[source_file section_path]`；
+    - section_path 为空或缺失时，回退为 `[source_file · 第N片段]`，
+      其中 N 为候选在列表中的 1-based 序号，确保 LLM 仍能定位来源；
+    - 内容字段优先取 "content"，缺失时取 "snippet"，再缺失时留空。
+
+    参数：
+    - candidates: 经 rerank 后的候选列表，已按相关性降序排列。
+
+    返回值：
+    字符串片段列表，每条可直接拼入 prompt。
+    """
+    chunks: list[str] = []
+    for i, c in enumerate(candidates, start=1):
+        src = str(c.get("source_file", ""))
+        sec = str(c.get("section_path", ""))
+        if sec:
+            ref = f"[{src} {sec}]"
+        else:
+            ref = f"[{src} · 第{i}片段]"
+        content = str(c.get("content", c.get("snippet", "")))
+        chunks.append(f"{ref} {content}")
+    return chunks
+
+
 async def run_retrieval_pipeline(
     query: str,
     *,
@@ -128,8 +194,8 @@ async def run_retrieval_pipeline(
     2. ACL：调用 resolve_access_policy 把用户上下文转为统一过滤条件；
     3. Hybrid Retrieval：调用 KnowledgeVectorStore.search 执行 dense+sparse 检索、
        RRF 融合与 rerank 精排；
-    4. Citation 打包：把候选 chunk 转为 CitationItem 列表；
-    5. Grounded Answer：把 Top-K chunk 拼入 prompt，调用 LLM 生成带依据的回答；
+    4. Citation 打包：调用 _build_citations 把候选 chunk 转为 CitationItem 列表；
+    5. Grounded Answer：调用 _build_context_chunks 拼 prompt，调用 LLM 生成带依据回答；
     6. Debug Trace：把各阶段结果写入 RetrievalDebugTrace，供排障使用。
 
     参数说明：
@@ -189,30 +255,14 @@ async def run_retrieval_pipeline(
         fallback_triggered = "hyde"
 
     # 4. Citation 打包
-    citations: list[CitationItem] = []
-    for c in candidates:
-        citations.append(
-            CitationItem(
-                doc_id=str(c.get("doc_id", "")),
-                chunk_id=str(c.get("chunk_id", "")),
-                source_file=str(c.get("source_file", "")),
-                section_path=str(c.get("section_path", "")),
-                version="",
-                snippet=str(c.get("snippet", "")),
-            )
-        )
+    citations = _build_citations(candidates)
 
     # 5. Grounded Answer（首版简化）
     # 低置信度判定：rerank 后候选 < 3 时不硬答，返回保守回答
     low_confidence_threshold = 3
     answer = ""
     if len(candidates) >= low_confidence_threshold:
-        context_chunks = []
-        for c in candidates[:5]:
-            src = c.get("source_file", "")
-            sec = c.get("section_path", "")
-            ref = f"[{src} {sec}]" if sec else f"[{src}]"
-            context_chunks.append(f"{ref} {c.get('content', '')}")
+        context_chunks = _build_context_chunks(candidates[:5])
         context = "\n\n".join(context_chunks)
 
         llm = get_chat_model(temperature=0.1, tags=["rag_answer"])

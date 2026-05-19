@@ -14,8 +14,13 @@ import asyncio
 
 import pytest
 
-from app.chains.rag_chain import run_rag_chain, run_retrieval_pipeline
-from app.models.knowledge_retrieval import KnowledgeAnswerPayload
+from app.chains.rag_chain import (
+    _build_citations,
+    _build_context_chunks,
+    run_rag_chain,
+    run_retrieval_pipeline,
+)
+from app.models.knowledge_retrieval import CitationItem, KnowledgeAnswerPayload
 from app.vectorstore.milvus_client import KnowledgeVectorStore
 
 
@@ -152,6 +157,70 @@ class TestLowRecallAndConfidence:
         result = asyncio.run(run_retrieval_pipeline("完全不相关", vectorstore=vectorstore))
         assert result.retrieval_debug.low_recall is True
         assert "暂无相关资料" in result.answer
+
+
+class TestCitationBuilder:
+    """测试引用载荷生成与上下文片段引用格式。"""
+
+    def test_build_citations_maps_fields(self) -> None:
+        """_build_citations 把候选 dict 正确映射到 CitationItem 字段。"""
+        candidates = [
+            {
+                "doc_id": "doc-1",
+                "chunk_id": "doc-1-c1",
+                "source_file": "报销制度.txt",
+                "section_path": "第一章",
+                "snippet": "员工报销流程规定",
+                "content": "员工报销流程规定详情",
+            }
+        ]
+        citations = _build_citations(candidates)
+        assert len(citations) == 1
+        c = citations[0]
+        assert isinstance(c, CitationItem)
+        assert c.doc_id == "doc-1"
+        assert c.chunk_id == "doc-1-c1"
+        assert c.source_file == "报销制度.txt"
+        assert c.section_path == "第一章"
+        assert c.snippet == "员工报销流程规定"
+        assert c.version == ""
+
+    def test_build_citations_empty_defaults(self) -> None:
+        """候选缺失字段时回退空字符串，不抛异常。"""
+        candidates = [{"doc_id": "doc-x"}]
+        citations = _build_citations(candidates)
+        assert citations[0].chunk_id == ""
+        assert citations[0].source_file == ""
+        assert citations[0].section_path == ""
+
+    def test_context_with_section_path(self) -> None:
+        """存在 section_path 时引用标记包含 source_file 与 section_path。"""
+        candidates = [
+            {"source_file": "休假制度.txt", "section_path": "总则", "content": "年假说明"}
+        ]
+        chunks = _build_context_chunks(candidates)
+        assert chunks[0] == "[休假制度.txt 总则] 年假说明"
+
+    def test_context_fallback_without_section_path(self) -> None:
+        """无 section_path 时回退为 source_file · 第N片段。"""
+        candidates = [
+            {"source_file": "报销制度.txt", "section_path": "", "content": "报销流程"},
+            {"source_file": "报销制度.txt", "section_path": "", "snippet": "补充说明"},
+        ]
+        chunks = _build_context_chunks(candidates)
+        assert "第1片段" in chunks[0]
+        assert "报销制度.txt" in chunks[0]
+        assert "报销流程" in chunks[0]
+        assert "第2片段" in chunks[1]
+        # 第二条无 content 时取 snippet
+        assert "补充说明" in chunks[1]
+
+    def test_context_fallback_missing_source_file(self) -> None:
+        """source_file 也缺失时仍保留片段序号标记。"""
+        candidates = [{"source_file": "", "section_path": "", "content": "内容"}]
+        chunks = _build_context_chunks(candidates)
+        assert "第1片段" in chunks[0]
+        assert "内容" in chunks[0]
 
 
 class TestRagChainCompatibility:
