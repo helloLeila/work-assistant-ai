@@ -1,4 +1,4 @@
-"""权限检查节点。"""
+"""权限检查节点。langgraph"""
 
 from __future__ import annotations
 
