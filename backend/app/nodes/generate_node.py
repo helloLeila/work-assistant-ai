@@ -21,6 +21,10 @@ FIXED_IDENTITY_KEYWORDS = (
 DATE_QUESTION_KEYWORDS = ("几号", "日期", "几月几号")
 WEEKDAY_QUESTION_KEYWORDS = ("星期几", "周几", "礼拜几")
 
+# 生成节点负责整合上下文并生成最终回答，包含以下功能：
+# 1. 权限拒绝时直接返回拒绝理由，无需进入 LLM
+# 2. 澄清意图时直接返回澄清问题，无需进入 LLM
+# 3. 固定高频问答（身份、帮助、打招呼、感谢等）直接返回预设答案，无需进入 LLM
 
 def _format_context_block(data: object) -> str:
     """把上下文对象转换成更适合模型阅读的文本。"""
