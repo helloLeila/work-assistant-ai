@@ -22,18 +22,18 @@ from app.services.weather_extractor import get_weather_extractor
 from app.services.web_search_service import get_web_search_service
 
 
+# 用户问天气但没说城市，也没法通过 IP 定位时，返回这句话引导用户补充城市。
 def _build_weather_clarify_message() -> str:
-    """用户问天气但没说城市，也没法通过 IP 定位时，返回这句话引导用户补充城市。"""
     return "你想查哪个城市的天气？请直接告诉我具体城市，例如"深圳天气"。"
 
 
+# 天气查询失败时，告诉用户没查到。
 def _build_weather_unavailable_message(search_query: str) -> str:
-    """天气查询失败时，告诉用户没查到。"""
     return f"我暂时没查到「{search_query}」的可信的最新天气数据。你可以稍后重试，或告诉我更具体的日期。"
 
 
+# 获取今天日期（按项目配置的时区，默认上海）。用来算"今天""明天"。
 def _get_local_today():
-    """获取今天日期（按项目配置的时区，默认上海）。用来算"今天""明天"。"""
     settings = get_settings()
     timezone_name = settings.app_timezone.strip() or "Asia/Shanghai"
     try:
@@ -43,18 +43,15 @@ def _get_local_today():
     return datetime.now(timezone).date()
 
 
+# 日期转中文星期，如"星期三"。
 def _format_weekday_label(value) -> str:
-    """日期转中文星期，如"星期三"。"""
     weekday_labels = ("星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日")
     return weekday_labels[value.weekday()]
 
 
+# 把预报日期转成"今天""明天""后天"这种相对说法。
+# 跟今天比：差 0 天=今天，1 天=明天，2 天=后天，-1 天=昨天，再远就直接显示具体日期。
 def _format_relative_weather_day(report) -> str:
-    """把预报日期转成"今天""明天""后天"这种相对说法。
-
-    跟今天比：差 0 天=今天，1 天=明天，2 天=后天，-1 天=昨天，
-    再远就直接显示具体日期。
-    """
     delta_days = (report.forecast_date - _get_local_today()).days
     if delta_days == 0:
         return "今天"
@@ -67,12 +64,10 @@ def _format_relative_weather_day(report) -> str:
     return report.forecast_date.strftime("%Y年%m月%d日")
 
 
+# 把天气数据拼接成人话。
+# 输入：结构化天气数据（城市、日期、气温、天气状况等）
+# 输出："北京今天（2026年05月21日，星期三）天气：晴，最低气温 15°C..."
 def _build_weather_message(report) -> str:
-    """把天气数据拼接成人话。
-
-    输入：结构化天气数据（城市、日期、气温、天气状况等）
-    输出："北京今天（2026年05月21日，星期三）天气：晴，最低气温 15°C..."
-    """
     details: list[str] = []
     if report.condition:
         details.append(report.condition)
@@ -98,12 +93,9 @@ def _build_weather_message(report) -> str:
     return f"{report.city}{relative_day}（{date_text}，{weekday_text}）天气：{body}。来源：{report.source_name}。"
 
 
+# 把天气数据打包成前端天气卡片需要的格式。
+# 前端拿到这个数据，就能渲染出一个漂亮的天气卡片，显示城市、日期、气温、天气状况、空气质量等。
 def _build_weather_artifact(report) -> dict[str, object]:
-    """把天气数据打包成前端天气卡片需要的格式。
-
-    前端拿到这个数据，就能渲染出一个漂亮的天气卡片，
-    显示城市、日期、气温、天气状况、空气质量等。
-    """
     temp_low_c = report.temp_low_c
     temp_high_c = report.temp_high_c
     if temp_low_c is None and temp_high_c is None and report.current_temp_c is not None:
@@ -147,12 +139,9 @@ def _build_weather_artifact(report) -> dict[str, object]:
     return artifact.model_dump()
 
 
+# 把网页搜索结果转成和知识库 sources 一样的格式。
+# 这样下游节点（generate_node）不用区分是网页搜的还是知识库搜的，统一处理就行。
 def _build_web_sources(result: WebSearchResult) -> list[dict[str, object]]:
-    """把网页搜索结果转成和知识库 sources 一样的格式。
-
-    这样下游节点（generate_node）不用区分是网页搜的还是知识库搜的，
-    统一处理就行。
-    """
     sources: list[dict[str, object]] = []
     for index, item in enumerate(result.results[:5], start=1):
         sources.append(
@@ -168,11 +157,9 @@ def _build_web_sources(result: WebSearchResult) -> list[dict[str, object]]:
     return sources
 
 
+# 把网页搜索结果整理成一段话，给 LLM 当参考资料用。
+# 格式：先写搜索主题，然后逐条列出标题、来源、摘要。
 def _format_search_context(result: WebSearchResult) -> str:
-    """把网页搜索结果整理成一段话，给 LLM 当参考资料用。
-
-    格式：先写搜索主题，然后逐条列出标题、来源、摘要。
-    """
     lines = [f"联网搜索主题：{result.query}"]
     for index, item in enumerate(result.results[:5], start=1):
         source = item.site_name or item.title or "网页来源"
@@ -181,27 +168,25 @@ def _format_search_context(result: WebSearchResult) -> str:
     return "\n".join(lines)
 
 
+# 天气查询补城市。
+# 用户说"今天天气怎么样"但没提城市，这个函数会根据 IP 推断城市，
+# 变成"北京 今天天气怎么样"再拿去搜，不然搜不到。
+#
+# 处理逻辑：
+# 1. 不是天气问题？直接返回原话，不用补
+# 2. 已经说了城市？直接返回原话，不用补
+# 3. 没 IP 地址？返回 None，让外面提示用户说城市
+# 4. 有 IP 但定位失败？返回 None，同样提示用户
+# 5. 定位成功？返回"城市名 + 原话"
+#
+# 参数：
+# - query: 用户原话
+# - client_ip: 用户 IP，用来定位城市
+#
+# 返回值：
+# - str: 补了城市的话，或者不用补的原话
+# - None: 需要补但补不了，外面要提示用户
 async def _augment_weather_query(query: str, client_ip: str | None) -> str | None:
-    """天气查询补城市。
-
-    用户说"今天天气怎么样"但没提城市，这个函数会根据 IP 推断城市，
-    变成"北京 今天天气怎么样"再拿去搜，不然搜不到。
-
-    处理逻辑：
-    1. 不是天气问题？直接返回原话，不用补
-    2. 已经说了城市？直接返回原话，不用补
-    3. 没 IP 地址？返回 None，让外面提示用户说城市
-    4. 有 IP 但定位失败？返回 None，同样提示用户
-    5. 定位成功？返回"城市名 + 原话"
-
-    参数：
-    - query: 用户原话
-    - client_ip: 用户 IP，用来定位城市
-
-    返回值：
-    - str: 补了城市的话，或者不用补的原话
-    - None: 需要补但补不了，外面要提示用户
-    """
     if not is_weather_query(query):
         return query
     if contains_city_name(query):
@@ -214,31 +199,30 @@ async def _augment_weather_query(query: str, client_ip: str | None) -> str | Non
     return f"{city} {query}"
 
 
+# 联网搜索节点。
+#
+# 什么时候进来：grader_node 觉得知识库搜出来的东西不够回答用户问题时，
+# 就会路由到这里，去网上搜一圈补充一下。
+#
+# 两条路径：
+# 1. 天气问题：先补城市名（用 IP 定位），然后搜天气，
+#    抽结构化数据，生成天气消息 + 天气卡片
+# 2. 普通问题：直接搜网页，把结果整理成文本给 LLM 用
+#
+# 各种异常情况的处理：
+# - Bocha API 关了 → 返回"搜索暂时不可用"
+# - 搜了但结果为空 → 返回"没查到结果"
+# - 天气搜了但抽不出数据 → 返回"没查到可信天气数据"
+#
+# 参数：
+# - state: 工作流状态，必须有 "query"（用户问题），
+#   可选有 "client_ip"（用户 IP，天气定位用）
+#
+# 返回值：
+# - structured_data: 搜索回来的内容（天气消息/网页摘要/错误提示）
+# - sources: 网页来源列表（普通搜索时）
+# - artifacts: 天气卡片数据（天气搜索时）
 async def web_search_node(state: dict) -> dict:
-    """联网搜索节点。
-
-    什么时候进来：grader_node 觉得知识库搜出来的东西不够回答用户问题时，
-    就会路由到这里，去网上搜一圈补充一下。
-
-    两条路径：
-    1. 天气问题：先补城市名（用 IP 定位），然后搜天气，
-       抽结构化数据，生成天气消息 + 天气卡片
-    2. 普通问题：直接搜网页，把结果整理成文本给 LLM 用
-
-    各种异常情况的处理：
-    - Bocha API 关了 → 返回"搜索暂时不可用"
-    - 搜了但结果为空 → 返回"没查到结果"
-    - 天气搜了但抽不出数据 → 返回"没查到可信天气数据"
-
-    参数：
-    - state: 工作流状态，必须有 "query"（用户问题），
-      可选有 "client_ip"（用户 IP，天气定位用）
-
-    返回值：
-    - structured_data: 搜索回来的内容（天气消息/网页摘要/错误提示）
-    - sources: 网页来源列表（普通搜索时）
-    - artifacts: 天气卡片数据（天气搜索时）
-    """
     query = str(state["query"]).strip()
     weather_query = is_weather_query(query)
     search_query = await _augment_weather_query(query, state.get("client_ip"))
