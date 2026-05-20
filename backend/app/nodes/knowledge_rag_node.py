@@ -2,13 +2,6 @@
 
 本节点位于 LangGraph 工作流的知识检索环节，对应 RAG 流程中的
 "Rewrite → ACL → Hybrid Retrieval → RRF → Rerank → Grounded Answer" 阶段。
-# 标准RAG问答执行流程
-# 1. Query Rewrite：优化用户查询，规整语义
-# 2. ACL（Access Control List ）：按用户权限过滤不可见知识库内容
-# 3. Hybrid Retrieval：（稠密检索 Dense+稀疏检索 Sparse）检索双路召回
-# 4. RRF（Reciprocal Rank Fusion ）：融合多路结果，去重统一排序
-# 5. Rerank：结果重排序 / 精排
-# 6. Grounded Answer：事实锚定式作答（基于检索到的真实知识库内容生成答案）
 
 上游接收 state["query"] 与可选的 state["user"]，下游把检索结果写入 state，
 供 grader_node 评估与 generate_node 生成带引用的回答。
@@ -97,9 +90,14 @@ async def knowledge_rag_node(state: dict) -> dict:
     - retrieval_debug: RetrievalDebugTrace（新格式，供调试与排障使用）。
     """
     return {
-        "retrieved_docs": retrieved_docs,#合规可查看的知识库文本片段
-        "draft_answer": payload.answer,#依托资料生成的回答内容
-        "sources": sources,#回答对应的原文资料出处
-        "citations": payload.citations,# 新格式资料引用列表（带文档ID/章节信息，用于前端溯源）
-        "retrieval_debug": payload.retrieval_debug,#检索全流程日志（排查报错使用）
+        # 旧格式：LangChain Document 列表，下游 generate_node 用它构建 prompt 上下文
+        "retrieved_docs": retrieved_docs,
+        # 旧格式：检索生成的回答文本，下游 generate_node 直接拼入最终回答
+        "draft_answer": payload.answer,
+        # 旧格式：来源列表（dict），下游 generate_node 生成引用文本、grader_node 评估检索质量
+        "sources": sources,
+        # 新格式：结构化引用（CitationItem），带 chunk_id/section_path，供后续前端做原文溯源跳转
+        "citations": payload.citations,
+        # 新格式：检索调试追踪，记录 rewrite/RRF/rerank/fallback 各阶段信息，供排障与链路还原
+        "retrieval_debug": payload.retrieval_debug,
     }
