@@ -49,20 +49,20 @@ def count_tokens(text: str) -> int:
     cn_count = len(text) - en_count
     return int(en_count * 0.3 + cn_count * 1.5)
 
-
+# 文件内容校验和计算工具，用于文档去重与变更检测
 def compute_checksum(content: bytes) -> str:
     """计算文件内容 checksum，用于去重与变更检测。"""
     return hashlib.sha256(content).hexdigest()
 
 
 # 默认 chunk 参数（设计文档硬性规定：512 tokens + 128 overlap）
-DEFAULT_CHUNK_SIZE = 512
-DEFAULT_CHUNK_OVERLAP = 128
+DEFAULT_CHUNK_SIZE = 512 # 单个文本块的最大 token 数
+DEFAULT_CHUNK_OVERLAP = 128 # 相邻文本块之间的重叠 token 数，保证上下文连续性
 
 # 允许特化策略的文档类型范围（设计文档硬性规定）
 OVERRIDE_DOC_TYPES = {"合同", "协议", "表格", "流程表单", "审批模板", "通知", "公告"}
 
-
+# 切分策略数据类与解析器，根据文档类型动态调整 chunk 参数
 @dataclass
 class ChunkingStrategy:
     """切分策略。"""
@@ -70,7 +70,7 @@ class ChunkingStrategy:
     chunk_size: int
     chunk_overlap: int
 
-
+# 分块策略解析器，根据文档类型和标题，自动匹配对应的分块规则
 class ChunkingStrategyResolver:
     """根据文档类型解析切分策略。
 
@@ -85,9 +85,12 @@ class ChunkingStrategyResolver:
             return ChunkingStrategy(chunk_size=1024, chunk_overlap=256)
         return ChunkingStrategy(chunk_size=DEFAULT_CHUNK_SIZE, chunk_overlap=DEFAULT_CHUNK_OVERLAP)
 
-
+# 文档解析 
+# 核心依赖：
+# LangChain 的 UnstructuredFileLoader（多格式文档加载器）、
+# RecursiveCharacterTextSplitter（递归字符文本切分器）
 class DocumentParser:
-    """文档解析器，提取文本与标题层级。"""
+    """2. 文档解析器，提取文本与标题层级。"""
 
     def __init__(self) -> None:
         self._resolver = ChunkingStrategyResolver()
@@ -173,7 +176,7 @@ class DocumentParser:
             )
         return documents
 
-
+# 接入结果数据类，包含 doc_id、状态、chunk_count 和可选 metadata字段
 @dataclass
 class IngestionResult:
     """接入结果。"""
@@ -183,7 +186,7 @@ class IngestionResult:
     chunk_count: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)
 
-
+#生成唯一文档标识（doc_id），保存原始文件，计算内容校验和（checksum）用于去重与变更检测
 class KnowledgeIngestionService:
     """知识接入服务：上传 -> 解析 -> 切分 -> 索引。"""
 

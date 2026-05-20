@@ -48,5 +48,5 @@ def create_app() -> FastAPI:
     # 返回配置完成的应用
     return application
 
-
+#创建应用实例
 app = create_app()
