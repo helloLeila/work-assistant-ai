@@ -57,3 +57,6 @@ backend/data/knowledge_index/
 backend/data/uploads/
 backend/data/*.db
 backend/data/*.json
+backend/data/business_demo.db
+backend/data/business_demo.db
+backend/data/business_demo.db
