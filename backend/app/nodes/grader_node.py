@@ -46,9 +46,9 @@ async def grader_node(state: dict) -> dict:
             for c in citations
         ]
     else:
-        documents = [
+        documents = [# 兼容旧格式 sources，构建与 CitationItem 类似的文档列表 
             {
-                "source_file": item.get("source_file", ""),
+                "source_file": item.get("source_file", ""),# 旧格式可能缺失 source_file，提供默认值避免 KeyError
                 "page_num": item.get("page_num", 1),
                 "content": item.get("snippet", ""),
                 "score": item.get("score", 0.0),
